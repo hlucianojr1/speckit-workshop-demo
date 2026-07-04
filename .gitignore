@@ -1,0 +1,26 @@
+# Local build + dependency outputs.
+build/
+build-*/
+out/
+vcpkg_installed/
+compile_commands.json
+.cache/
+CMakeUserPresets.json
+
+# IDE per-user.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+
+# Local crash-dump working copies (committed fixtures use the .dmp / .pdb without
+# the .local suffix; the .local variants are gitignored).
+*.dmp.local
+*.pdb.local
+*.core.local
+
+# Compiled debug info from capture scripts (capture.ps1 / capture.sh).
+*.pdb
+
+# Logs.
+*.log
