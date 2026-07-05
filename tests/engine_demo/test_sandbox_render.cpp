@@ -173,7 +173,6 @@ namespace {
 TEST(sandbox_render, app_cpp_enables_vsync) {
     const char* candidates[] = {
         "../../../../apps/sandbox/app.cpp",
-        "output/ea-cpp-games/apps/sandbox/app.cpp",
         "apps/sandbox/app.cpp",
     };
     bool found_file  = false;
@@ -198,7 +197,6 @@ TEST(sandbox_render, app_cpp_enables_vsync) {
 TEST(sandbox_render, cmake_links_dwmapi_and_embeds_manifest_on_win32) {
     const char* candidates[] = {
         "../../../../apps/sandbox/CMakeLists.txt",
-        "output/ea-cpp-games/apps/sandbox/CMakeLists.txt",
         "apps/sandbox/CMakeLists.txt",
     };
     bool found_file     = false;
