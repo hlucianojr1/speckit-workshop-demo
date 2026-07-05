@@ -13,6 +13,7 @@
 - [Part 0: Live Demo — Spec-Kit in Action](#part-0-live-demo--spec-kit-in-action)
   - [0.1 What You're About to See](#01-what-youre-about-to-see)
   - [0.2 Demo Setup](#02-demo-setup)
+  - [0.2a Workshop Branching Model: demo-0x](#02a-workshop-branching-model-demo-0x)
   - [0.3 Demo Step 1: Ground the Constitution](#03-demo-step-1-ground-the-constitution)
   - [0.4 Demo Step 2: Generate the Specification](#04-demo-step-2-generate-the-specification)
   - [0.5 Demo Step 3: Produce the Architecture Plan](#05-demo-step-3-produce-the-architecture-plan)
@@ -68,6 +69,7 @@
   - [S.7 Step 5: /speckit.implement — One Task at a Time](#s7-step-5-speckitimplement--one-task-at-a-time)
   - [S.8 Final Verification](#s8-final-verification)
   - [S.9 Stretch Goals and Reflection](#s9-stretch-goals-and-reflection)
+- [Workshop Finale: Two Features, One Branch](#workshop-finale-two-features-one-branch)
 
 ---
 
@@ -132,6 +134,7 @@ _Each arrow is a Human-In-The-Loop (HITL) gate — the demo pauses for approval 
 | VS Code with Copilot Chat (Agent Mode enabled)         | Connected ✅          |
 | `specs/constitution.md` open in editor                 | 8 articles visible ✅ |
 | `AGENTS.md` open in editor                             | Hard rules visible ✅ |
+| Demo branch created and checked out (§0.2a)            | `demo-01` ✅          |
 | Fallback branch available (`git branch -a`)            | `demo-fallback` ✅    |
 
 > **Stage insurance:** if live generation stalls mid-demo, `git checkout demo-fallback`
@@ -147,6 +150,45 @@ ctest --preset default-debug --output-on-failure
 ```
 
 > **Facilitator says:** "Everything's green. Now watch what happens when we feed a problem to Spec-Kit."
+
+---
+
+### 0.2a Workshop Branching Model: demo-0x
+
+Everything in this workshop happens on a disposable **demo branch** — `demo-01` for your first run, `demo-02` if you restart, and so on. `main` is never touched.
+
+```mermaid
+gitGraph
+    commit id: "baseline"
+    branch demo-01
+    checkout demo-01
+    commit id: "setup"
+    branch feature-001-particle-vfx
+    checkout feature-001-particle-vfx
+    commit id: "001 tasks"
+    checkout demo-01
+    merge feature-001-particle-vfx
+    branch feature-002-sandbox-vfx
+    checkout feature-002-sandbox-vfx
+    commit id: "002 tasks"
+    checkout demo-01
+    merge feature-002-sandbox-vfx
+```
+
+**Create the demo branch (before the demo starts):**
+
+```bash
+git checkout main && git pull
+git checkout -b demo-01
+```
+
+**The three rules:**
+
+1. **Feature branches base off `demo-0x`, not `main`.** Spec-Kit's `create-new-feature.sh` branches from the **current HEAD** — so simply be checked out on `demo-0x` whenever you run `/speckit.specify`, and the feature branch (e.g., `001-particle-vfx-subsystem`) is automatically based on it.
+2. **Features merge back to `demo-0x`, never to `main`.** When a feature's tasks are all approved: `git checkout demo-0x && git merge --no-ff <feature-branch>`, then re-run `ctest` as the merge gate.
+3. **Restart by incrementing, not repairing.** If a run goes off the rails, abandon the branch entirely and cut `demo-0(x+1)` fresh from `main`. A restart costs one `git checkout -b`; untangling a broken branch mid-workshop costs the session.
+
+By the end of the workshop, your `demo-0x` branch carries **two merged features** — Feature 001 (Particle VFX, Part 0) and Feature 002 (Sandbox VFX Visualization, Self-Study Lab) — demonstrated running together in the [Workshop Finale](#workshop-finale-two-features-one-branch).
 
 ---
 
@@ -180,6 +222,10 @@ For the **Particle VFX Subsystem**, the relevant constraints are:
 > **⏱ ~5 minutes**
 
 **What you'll see:** A natural-language problem statement goes in. A fully-formed specification with data models, behavioral contracts, and measurable acceptance criteria comes out — all grounded in the constitution.
+
+> **Branch check:** you're on `demo-01` (§0.2a). `/speckit.specify` will create the feature
+> branch `001-particle-vfx-subsystem` from it and switch to it automatically — all
+> Feature 001 work lands there until the merge-back in §0.7.
 
 **Prompt to Copilot:**
 
@@ -394,6 +440,17 @@ cmake --build --preset default-debug
 > **Facilitator says:** "60 lines. Clean compile. Every constitutional article respected. Task 1 done. We'd commit this, then proceed to Task 2. Each subsequent task follows the same cycle: prompt → generate → review → approve/reject."
 
 ✅ **Task 1 Approved** → commit and proceed
+
+**After all 5 tasks are approved — merge back to the demo branch:**
+
+```bash
+git checkout demo-01
+git merge --no-ff 001-particle-vfx-subsystem
+ctest --preset default-debug --output-on-failure   # merge gate: everything green
+```
+
+Feature 001 is now on `demo-01`; `main` never moved. This is the first of the two merges
+your demo branch collects (see the [Workshop Finale](#workshop-finale-two-features-one-branch)).
 
 ---
 
@@ -793,6 +850,7 @@ ctest --preset default-debug --output-on-failure
 - Completed the live demo (Part 0) — you've seen the full flow end-to-end
 - Completed Part 1 — you understand the principles behind HITL gates, right-sizing, and stage roll-back
 - speckit-workshop-demo repository cloned and building (`ctest` green)
+- Checked out on your `demo-0x` branch (§0.2a) — each Part 2 feature branches off it and merges back to it, never to `main`
 
 ---
 
@@ -1848,6 +1906,7 @@ Write a "golden file" test that captures the C++ output at a known seed and fram
 | Task too large (> 150 lines) | Reject and ask for split                                |
 | Constitution violated        | Reject immediately; cite article number                 |
 | Tests fail                   | Reject; ask Copilot to fix while preserving spec intent |
+| Demo run unrecoverable       | Abandon `demo-0x`; cut `demo-0(x+1)` from `main` (§0.2a) |
 
 ### Anti-Patterns
 
@@ -2064,7 +2123,7 @@ Part 0's demo produced the `engine_demo::vfx` subsystem — `particle_pool`, `fo
 
 ### S.2 Prerequisites
 
-1. Feature 001 is merged: `specs/001-particle-vfx-subsystem/` exists and all its tasks are `[x]`.
+1. Feature 001 is merged into your `demo-0x` branch (§0.2a): `specs/001-particle-vfx-subsystem/` exists on it and all its tasks are `[x]`.
 2. A green baseline — run all three and confirm zero failures before you begin:
 
 ```bash
@@ -2080,7 +2139,7 @@ ctest --preset default-debug --output-on-failure
 # Note the printed trace_digest — this number must NOT change.
 ```
 
-4. Work on a fresh feature branch (e.g., `002-sandbox-vfx-visualization`).
+4. Check out your `demo-0x` branch. When you run `/speckit.specify` in §S.3, Spec-Kit creates the feature branch (e.g., `002-sandbox-vfx-visualization`) from it automatically — implement there, then merge back to `demo-0x` in §S.8, never to `main`.
 
 ### S.3 Step 1: /speckit.specify — Feature 002
 
@@ -2195,6 +2254,15 @@ ctest --preset default-debug --output-on-failure
 ```
 
 3. **Visual smoke:** run the sandbox, right-click — you should see the VFX burst layered over the familiar 12-particle physics burst; watch free particles spark when they hit the bounds. (In a VM without hardware GL, use `--screenshot <relative-path>` with a software renderer.)
+4. **Merge back to the demo branch:**
+
+```bash
+git checkout demo-01          # your demo-0x branch
+git merge --no-ff 002-sandbox-vfx-visualization
+ctest --preset default-debug --output-on-failure   # merge gate
+```
+
+Both features now live on `demo-0x` — continue to the [Workshop Finale](#workshop-finale-two-features-one-branch).
 
 ### S.9 Stretch Goals and Reflection
 
@@ -2213,6 +2281,60 @@ ctest --preset default-debug --output-on-failure
 
 ---
 
+## Workshop Finale: Two Features, One Branch
+
+> **⏱ ~15 minutes** | Requires Feature 001 (Part 0) and Feature 002 (Self-Study Lab) both merged into your `demo-0x` branch.
+
+The workshop closes by proving the branching model paid off: two features, built as separate Spec-Kit cycles on separate feature branches, now run together on one demo branch — while `main` never moved.
+
+### F.1 Verify the Merged State
+
+```bash
+git checkout demo-01                       # your demo-0x branch
+git log --oneline --graph --merges -n 10   # two --no-ff merge commits visible
+cmake --build --preset default-debug
+ctest --preset default-debug --output-on-failure   # full gate: 001 + 002 tests green
+```
+
+The golden digest A/B (Feature 002's decisive check, §S.8) must still pass on the merged branch:
+
+```bash
+./build/apps/sandbox/ea-sandbox --headless --seed 42 --frames 600 --out finale-trace.csv
+# trace_digest must equal the baseline recorded in §S.2
+```
+
+### F.2 The Visual Payoff
+
+Run the sandbox and demonstrate both features live in a single session:
+
+```bash
+./build/apps/sandbox/ea-sandbox
+```
+
+| Action                                       | What you should see                                                    | Feature   |
+| -------------------------------------------- | ---------------------------------------------------------------------- | --------- |
+| Right-click anywhere                         | 12-particle physics burst **plus** a VFX particle burst at the cursor  | 001 + 002 |
+| Watch free particles hit the world bounds    | Deterministic spark bursts at each contact point                       | 002       |
+| Check the HUD                                | Live-VFX-count line updating as particles spawn and retire             | 002       |
+| Watch the frame budget monitor               | 60 FPS fixed-step budget held with a full VFX pool (Article 6)         | 001       |
+
+### F.3 Optional: Competition Mode
+
+Run the finale as a head-to-head race:
+
+1. Pair up. Each participant cuts their **own** demo branch from `main` (`demo-01`, `demo-02`, …).
+2. Both run the full relay solo: Feature 001 (Part 0 flow) → merge → Feature 002 (Self-Study Lab) → merge.
+3. First to a fully green finale wins: `ctest` green + digest A/B pass + both visual behaviors demonstrated side-by-side (F.2).
+4. Judge's checklist:
+   - [ ] Two `--no-ff` merge commits on `demo-0x`; zero new commits on `main`
+   - [ ] HITL gates actually reviewed (spot-check: ask for one rejected artifact and how it was fixed)
+   - [ ] Golden digest unchanged from the §S.2 baseline
+   - [ ] Both visual behaviors demonstrated in one sandbox run
+
+> **Restart rule:** if a run goes sideways at any point, don't repair the branch — abandon it and cut `demo-0(x+1)` from `main` (§0.2a). Restarts are cheap by design; that's the point of the model.
+
+---
+
 > **End of Workshop Training Document**
 >
 > This document provides complete, self-contained training material for a demo-first workshop demonstrating the value of GitHub Copilot Spec-Kit for game development. Part 0 hooks participants with a live demo, Part 1 unpacks the principles, Part 2 provides hands-on practice, Part 3 designs a new game from an existing foundation, and Part 4 transforms a game across programming languages.
@@ -2220,6 +2342,6 @@ ctest --preset default-debug --output-on-failure
 > **Next Steps:**
 >
 > - Session delivery: Part 0 (20 min demo) + Parts 1–4 map to facilitated sessions
-> - Hands-on exercises: Participants replicate the demonstrated flows on their own branch
+> - Hands-on exercises: Participants replicate the demonstrated flows on their own `demo-0x` branch (§0.2a)
 > - Self-study: The [Self-Study Lab](#self-study-lab-visualize-the-vfx-subsystem-in-the-sandbox) has participants run the full Spec-Kit cycle solo on Feature 002 (Sandbox VFX Visualization)
 > - Assessment: Use the reflection questions at the end of each section for group discussion
