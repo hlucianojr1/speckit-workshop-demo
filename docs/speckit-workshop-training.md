@@ -58,6 +58,16 @@
 - [Appendix A: Spec-Kit Quick Reference Card](#appendix-a-spec-kit-quick-reference-card)
 - [Appendix B: Copilot CLI Command Reference](#appendix-b-copilot-cli-command-reference)
 - [Appendix C: Custom Instructions File Templates](#appendix-c-custom-instructions-file-templates)
+- [Self-Study Lab: Visualize the VFX Subsystem in the Sandbox](#self-study-lab-visualize-the-vfx-subsystem-in-the-sandbox)
+  - [S.1 Mission and Context](#s1-mission-and-context)
+  - [S.2 Prerequisites](#s2-prerequisites)
+  - [S.3 Step 1: /speckit.specify — Feature 002](#s3-step-1-speckitspecify--feature-002)
+  - [S.4 Step 2: /speckit.clarify (Optional)](#s4-step-2-speckitclarify-optional)
+  - [S.5 Step 3: /speckit.plan — Review Checklist](#s5-step-3-speckitplan--review-checklist)
+  - [S.6 Step 4: /speckit.tasks — Sizing Gate](#s6-step-4-speckittasks--sizing-gate)
+  - [S.7 Step 5: /speckit.implement — One Task at a Time](#s7-step-5-speckitimplement--one-task-at-a-time)
+  - [S.8 Final Verification](#s8-final-verification)
+  - [S.9 Stretch Goals and Reflection](#s9-stretch-goals-and-reflection)
 
 ---
 
@@ -2033,6 +2043,176 @@ If you draft `std::vector` or `try`/`catch`, STOP and re-read this file.
 
 ---
 
+## Self-Study Lab: Visualize the VFX Subsystem in the Sandbox
+
+> **⏱ 60–90 minutes, solo** | **Difficulty:** Intermediate
+> **You drive every stage yourself.** No facilitator, no answer key — just you, Copilot, and the Spec-Kit gates you watched in Part 0.
+
+### S.1 Mission and Context
+
+Part 0's demo produced the `engine_demo::vfx` subsystem — `particle_pool`, `force_applicator`, and `emitter` — fully implemented and tested under `specs/001-particle-vfx-subsystem/`. But open the sandbox (`apps/sandbox/`) and you'll see... nothing new. Task T022 of that feature deliberately deferred wiring VFX into the sandbox scene:
+
+> _"`apps/sandbox` does not construct an `engine_demo::vfx::emitter` yet, so listing it there would be inaccurate until a follow-up feature wires VFX into the sandbox scene."_
+
+**Your mission:** close that gap as **Feature 002 — Sandbox VFX Visualization**, driving the complete Spec-Kit cycle (`/speckit.specify` → `/speckit.plan` → `/speckit.tasks` → `/speckit.implement`) yourself. When you're done, right-clicking in the sandbox spawns a visible burst of VFX particles, and free particles throw sparks when they bounce off the world bounds.
+
+**Why this feature is a great solo exercise:**
+
+- It spans a **library change** (a small addition to `emitter`), an **app integration** (scene + renderer), and a **determinism constraint** (the headless golden trace must not change) — three very different pressures on your spec.
+- It has a built-in falsifiable acceptance criterion: the headless `trace_digest` **must be byte-identical** before and after your change.
+- It will tempt Copilot to violate Article 6 in a subtle way. Your plan review (§S.5) is where you catch it.
+
+### S.2 Prerequisites
+
+1. Feature 001 is merged: `specs/001-particle-vfx-subsystem/` exists and all its tasks are `[x]`.
+2. A green baseline — run all three and confirm zero failures before you begin:
+
+```bash
+cmake --preset default-debug
+cmake --build --preset default-debug
+ctest --preset default-debug --output-on-failure
+```
+
+3. Record your baseline golden digest (you will diff against this in §S.8):
+
+```bash
+./build/apps/sandbox/ea-sandbox --headless --seed 42 --frames 600 --out baseline-trace.csv
+# Note the printed trace_digest — this number must NOT change.
+```
+
+4. Work on a fresh feature branch (e.g., `002-sandbox-vfx-visualization`).
+
+### S.3 Step 1: /speckit.specify — Feature 002
+
+Paste this prompt, then **stop and review** the generated spec at the HITL gate below.
+
+```text
+/speckit.specify
+
+Create a specification for Feature 002: Sandbox VFX Visualization for engine_demo.
+
+Context:
+- Feature 001 (specs/001-particle-vfx-subsystem/) delivered engine_demo::vfx
+  (particle_pool, force_applicator, emitter) — implemented, tested, and green.
+- Its task T022 explicitly deferred wiring VFX into apps/sandbox. This feature closes
+  that gap.
+- The sandbox scene (apps/sandbox/scene.cpp) already has: an RMB handler that calls
+  scene::spawn_particle_burst (12 ad-hoc physics particles), and world-bounds bounce
+  branches for free particles in scene::substep (non-storm scenes).
+- scene::state_digest() feeds the headless golden trace (apps/sandbox/headless.cpp).
+  Motion trails are the existing precedent for render-only state that is excluded
+  from the digest.
+- See specs/constitution.md for binding constraints (articles 1-8).
+
+Requirements:
+- Right-mouse-button burst: in addition to the existing 12-particle physics burst,
+  spawn a burst of engine_demo::vfx particles at the cursor (do NOT remove or alter
+  the existing physics burst behavior).
+- Collision sparks: when a free particle bounces off the world bounds in non-storm
+  scenes, emit a small deterministic VFX spark burst at the contact point.
+- VFX particles are strictly render-only: scene::state_digest() and the headless CSV
+  trace are unchanged — byte-identical golden traces for identical seeds.
+- The scene's existing rng draw order must not change (VFX must use its own seeded
+  rng stream).
+- Render pass: draw live VFX particles in the raylib renderer with lifetime-based
+  alpha fade; add a live-VFX-count line to the HUD.
+- Zero heap/arena allocation per burst after scene construction (Article 6).
+
+Acceptance Criteria:
+- Headless run (seed 42, 600 frames) produces the identical trace_digest before and
+  after this feature.
+- All existing tests stay green; every new public function has a GTest (Article 7).
+- Frame budget: the sandbox holds its 60 FPS fixed-step budget with a full VFX pool.
+- Out of scope: rope-break mechanics (none exist today), including VFX state in the
+  digest, new emitter shapes or force types.
+```
+
+**🚨 HITL GATE — Spec review.** Before approving, verify:
+
+- [ ] User stories are independently testable and prioritized (RMB burst should be P1 — it's the demo-able MVP).
+- [ ] "Digest byte-identical" appears as a **measurable** success criterion, not a vague "should stay deterministic."
+- [ ] Scope explicitly excludes rope-break and digest changes. If Copilot invented a rope-break mechanic, that's hallucinated scope — reject and re-specify.
+
+✅ **Approve** → proceed. ❌ **Reject** → refine the prompt and re-run (see §2.2 for the rejection flow).
+
+### S.4 Step 2: /speckit.clarify (Optional)
+
+If your Spec-Kit install provides `/speckit.clarify`, run it now. Good clarifying questions it might ask (and the answers this lab intends):
+
+| Likely question                                        | Intended answer                                             |
+| ------------------------------------------------------ | ----------------------------------------------------------- |
+| Should storm-scene wrap-around also spark?             | No — a wrap is not a bounce/collision                       |
+| VFX pool capacity?                                     | Implementer's choice; ~2048 fits the scene's 4 MiB arena    |
+| Replace or augment the RMB physics burst?              | Augment — existing behavior is untouched                    |
+| Should sparks fire in the particle_storm scene?        | No — its particles wrap instead of bouncing                 |
+
+### S.5 Step 3: /speckit.plan — Review Checklist
+
+Run `/speckit.plan` against your approved spec. **This is the stage where this lab is won or lost.** A plausible-looking plan can hide two constitutional traps. Do not approve until the plan explicitly addresses all four items:
+
+- [ ] **The emitter-shape trap (Article 6).** `emitter`'s shape is fixed at construction, but bursts happen at arbitrary cursor/contact positions. Reconstructing an `emitter` per burst re-allocates its internal scratch buffer from the scene's bump arena on every click — an allocation leak in disguise. A good plan proposes a **small library addition** instead (e.g., `emitter::set_shape(emitter_shape) noexcept` in `include/engine_demo/vfx/emitter.h`), with its own GTest per Article 7.
+- [ ] **The rng-stream trap (Article 5).** If the scene's existing `m_rng` feeds VFX sampling, every draw shifts the physics rng sequence and the golden digest changes. A good plan gives the emitter its **own seeded rng stream** (the `emitter` already owns one — the plan just must not route scene rng into it).
+- [ ] **Test strategy.** `scene.cpp` is raylib-free by design — a good plan proposes compiling it into a new test target (e.g., `test_scene_vfx.cpp`) that asserts: bursts populate the pool, particles age/retire across `step()`, and **digest-with-bursts == digest-without-bursts**.
+- [ ] **Arena headroom math.** The scene arena is 4 MiB. The plan should show the pool + scratch cost (~2048 particles ≈ 200 KB total) fits.
+
+> **If the plan misses any of these, reject it** and re-prompt with the missing constraint spelled out. Catching a bad plan here costs one re-prompt; catching it in code review costs a rework cycle. This is the §2.2 rejection flow in real life.
+
+**🚨 HITL GATE:** All four boxes checked? ✅ **Approve** → proceed to `/speckit.tasks`
+
+### S.6 Step 4: /speckit.tasks — Sizing Gate
+
+Run `/speckit.tasks`. Compare the generated decomposition against this expected shape (yours may differ in detail — that's fine, but the *structure* should match):
+
+| Phase                | Expected tasks                                                                  | Test-first?                          |
+| -------------------- | ------------------------------------------------------------------------------- | ------------------------------------ |
+| Library              | `set_shape` test (RED) → `set_shape` impl in `emitter.h`/`.cpp` (GREEN)          | Yes — test task precedes impl task   |
+| Scene integration    | `test_scene_vfx.cpp` (RED) → pool/emitter members, burst + spark emission, tick  | Yes                                  |
+| Renderer             | Draw pass + HUD count in `app.cpp`, RMB handler wiring                           | Manual/screenshot verification       |
+| Docs & validation    | README key table, digest A/B run, full ctest gate                                | —                                    |
+
+**🚨 HITL GATE:** Every implementation task preceded by its test task? Each task small enough to review in ~5 minutes? Digest A/B check present as an explicit task? ✅ **Approve** → proceed.
+
+### S.7 Step 5: /speckit.implement — One Task at a Time
+
+Run `/speckit.implement` **one task at a time**. Between every task:
+
+```bash
+cmake --build --preset default-debug
+ctest --preset default-debug --output-on-failure
+```
+
+**Off-the-rails recovery** (from `AGENTS.md`): if Copilot drafts `std::vector`, `try`/`catch`, or an unseeded rng — stop, cite the violated article, and re-run the task. If the same task is rejected 3×, the spec is wrong: roll back to `/speckit.specify`.
+
+### S.8 Final Verification
+
+1. **Full gate:** `ctest --preset default-debug --output-on-failure` — everything green, including your new `set_shape` and scene-VFX tests.
+2. **Golden digest A/B** — the decisive check:
+
+```bash
+./build/apps/sandbox/ea-sandbox --headless --seed 42 --frames 600 --out feature-trace.csv
+# trace_digest must equal the baseline you recorded in S.2. If it differs, VFX state
+# leaked into the digest or the scene rng stream shifted — find which trap you hit.
+```
+
+3. **Visual smoke:** run the sandbox, right-click — you should see the VFX burst layered over the familiar 12-particle physics burst; watch free particles spark when they hit the bounds. (In a VM without hardware GL, use `--screenshot <relative-path>` with a software renderer.)
+
+### S.9 Stretch Goals and Reflection
+
+**Stretch goals** (each is a new mini Spec-Kit cycle — resist the urge to bolt them on):
+
+- Align bounce sparks with the collision normal using `cone_shape` instead of `point_shape`.
+- Attach a `turbulence_force` to the spark emitter — then re-run the digest A/B and explain why it still passes.
+- Add a per-frame emission cap so busy scenes cannot exhaust the pool.
+
+**Reflection questions:**
+
+1. Why did keeping VFX render-only preserve the golden digest? What exactly would including it in the digest have cost the project?
+2. Where did the constitution *force* a design decision that a "just make it work" prompt would have gotten wrong? (Hint: §S.5's first two checkboxes.)
+3. The `pool_exhausted` status made spark-flooding a *graceful* failure instead of a crash. Which article made that behavior inevitable, and when was it locked in — during 001 or 002?
+4. Compare your total prompt count against a hypothetical single "add particle visuals to the sandbox" prompt. Where did the extra prompts buy you reviewability?
+
+---
+
 > **End of Workshop Training Document**
 >
 > This document provides complete, self-contained training material for a demo-first workshop demonstrating the value of GitHub Copilot Spec-Kit for game development. Part 0 hooks participants with a live demo, Part 1 unpacks the principles, Part 2 provides hands-on practice, Part 3 designs a new game from an existing foundation, and Part 4 transforms a game across programming languages.
@@ -2041,4 +2221,5 @@ If you draft `std::vector` or `try`/`catch`, STOP and re-read this file.
 >
 > - Session delivery: Part 0 (20 min demo) + Parts 1–4 map to facilitated sessions
 > - Hands-on exercises: Participants replicate the demonstrated flows on their own branch
+> - Self-study: The [Self-Study Lab](#self-study-lab-visualize-the-vfx-subsystem-in-the-sandbox) has participants run the full Spec-Kit cycle solo on Feature 002 (Sandbox VFX Visualization)
 > - Assessment: Use the reflection questions at the end of each section for group discussion
