@@ -1,6 +1,6 @@
 // Implementation of engine_demo::allocator. Bump-pointer arena over a caller-provided buffer.
 //
-// FIX BUG-001 (Session 02): bounds check now uses the post-alignment offset so that
+// FIX BUG-001: bounds check now uses the post-alignment offset so that
 // alignment padding is correctly accounted for before approving the allocation.
 
 #include "engine_demo/allocator.h"

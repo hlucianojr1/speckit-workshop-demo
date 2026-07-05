@@ -4,7 +4,7 @@
 //   - 5 (determinism: doubles only)
 //   - 6 (real-time: no allocation in record_sample)
 //
-// SEEDED DEFECT BUG-006: see src/engine_demo/frame_budget.cpp.
+// FIX BUG-006: warm-up frames are counted exactly once (see frame_budget.cpp).
 
 #pragma once
 

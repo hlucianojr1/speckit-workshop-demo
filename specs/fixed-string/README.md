@@ -1,6 +1,6 @@
-# Fixed-string — Session 07 demo feature
+# Fixed-string — Part 2 demo feature (§2.4)
 
-> **Stage:** skeleton only. Session 07 facilitator runs the spec-kit flow live.
+> **Stage:** skeleton only. The facilitator runs the spec-kit flow live.
 
 ## Brief
 

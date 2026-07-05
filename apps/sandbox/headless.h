@@ -1,8 +1,7 @@
 // Headless mode — runs the scene N fixed-step ticks, writes per-frame body
 // positions to a CSV file, and computes a deterministic 64-bit FNV-1a digest
-// over the final state. CI uses this digest to assert determinism on the
-// canonical (BUG-fixed) branch and to demonstrate divergence on the seeded
-// branch (BUG-004).
+// over the final state. The same seed + frame count must always produce the
+// same digest (constitutional Article 5).
 
 #pragma once
 

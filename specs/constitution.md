@@ -1,7 +1,11 @@
 # engine_demo Constitution (Spec-Kit ground truth)
 
-Eight non-negotiable articles that bind every `/specify`, `/plan`, `/tasks`, and `/implement`
-invocation in this workspace. The reviewer chat mode rejects any artifact that violates them.
+Eight non-negotiable articles that bind every `/speckit.specify`, `/speckit.plan`,
+`/speckit.tasks`, and `/speckit.implement` invocation in this workspace. Reviewers reject
+any artifact that violates them.
+
+> Machine-readable copy: [`.specify/memory/constitution.md`](../.specify/memory/constitution.md)
+> (read by the spec-kit prompts). Keep both files in sync.
 
 ## Article 1 — No exceptions
 
@@ -31,10 +35,11 @@ Default-constructed containers are forbidden in committed code.
 
 Simulation paths are deterministic across runs at fixed seeds:
 
-- `eastl::mt19937` seeded explicitly at construction; `std::random_device` is forbidden in
-  sim paths.
+- RNG engines are seeded explicitly at construction from the full seed width;
+  `std::random_device` is forbidden in sim paths. `std::mt19937` is permitted as an
+  interop boundary because EASTL ships no Mersenne Twister engine.
 - Time accumulators are `double`. `float` is permitted only at the render boundary.
-- Iteration order over containers is deterministic; never `eastl::unordered_map` keyed on
+- Iteration order over containers is deterministic; never hash-keyed containers keyed on
   pointer identity in sim paths.
 
 ## Article 6 — Real-time budgets
@@ -45,20 +50,20 @@ use lockless ring buffers for cross-thread handoff.
 
 ## Article 7 — Test-first
 
-Every public function has at least one GTest covering happy + edge cases. `/implement` tasks
-emit the test before the implementation. CI gates on green tests + clang-tidy clean.
+Every public function has at least one GTest covering happy + edge cases.
+`/speckit.implement` tasks emit the test before the implementation. The local gate is
+green tests (`ctest --preset default-debug`) plus clang-tidy clean.
 
 ## Article 8 — HITL gates
 
-Spec-Kit pauses for human approval **between** `/plan` and `/tasks`, and **between every
-`/implement` task**. Coding Agent handoffs require human review of the produced PR before
-merge. The `reviewer` chat mode runs over every session bundle before delivery.
+Spec-Kit pauses for human approval **between** `/speckit.plan` and `/speckit.tasks`, and
+**between every `/speckit.implement` task**. Coding Agent handoffs require human review of
+the produced PR before merge.
 
 ## Enforcement
 
 - **clang-tidy** (`.clang-tidy`) flags `bugprone-*`, `cert-*`, `cppcoreguidelines-*`,
   `modernize-*`, `performance-*`, `portability-*`, `readability-*`. WarningsAsErrors mirrors.
-- **CI** runs `cmake --preset default-debug && cmake --build && ctest --output-on-failure`
-  on Ubuntu and Windows on every PR.
-- **Reviewer chat mode** (`/.github/chatmodes/reviewer.chatmode.md` at the build-system root)
-  produces a severity report; Critical findings block merge.
+- **Local gate**: `cmake --preset default-debug && cmake --build --preset default-debug &&
+  ctest --preset default-debug --output-on-failure` must be green before any task is
+  approved.

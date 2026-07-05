@@ -12,8 +12,9 @@ Four scenes selectable at runtime:
 | 3 | cloth             | 12 × 8 grid with structural + alternating shear constraints (~250 edges) |
 | 4 | particle storm    | 500 free particles orbiting two gravity wells                         |
 
-This is the **cold-open** demo for Session 01 and the **canonical bug target**
-for Sessions 02–04: every committed seeded bug surfaces visually here.
+This is the **cold-open** demo for the workshop (Part 0 of
+[docs/speckit-workshop-training.md](../../docs/speckit-workshop-training.md)): every
+engine subsystem surfaces visually here.
 
 ## Build
 
@@ -24,27 +25,6 @@ for Sessions 02–04: every committed seeded bug surfaces visually here.
 > ```
 > vcpkg must be a **full clone** (not `--depth 1`) so the manifest's `builtin-baseline`
 > commit resolves. If you cloned shallow, run `git fetch --unshallow` inside `$VCPKG_ROOT`.
-
-### macOS (Apple Silicon) — push-button script
-
-From `output/ea-cpp-games/`, run the helper script — it handles `VCPKG_ROOT` detection,
-configure (skipped if `build/CMakeCache.txt` already exists), build, and launch:
-
-```bash
-# Interactive (default: rope scene, seed 42)
-./run_sandbox.sh
-
-# Pick a scene or seed
-./run_sandbox.sh --scene cloth
-./run_sandbox.sh --scene storm --seed 7
-
-# Headless / CI
-./run_sandbox.sh --headless --seed 42 --frames 60
-```
-
-The script uses `open … --args` for interactive mode (gives the process a proper foreground
-GUI activation so macOS doesn't ANR-flag it) and invokes the binary directly for
-headless/screenshot mode.
 
 ### macOS (Apple Silicon) — manual steps
 
@@ -111,22 +91,22 @@ ea-sandbox --help
 | `1` / `2` / `3` / `4` | Switch scene (rope / pendulum tower / cloth / particle storm)  |
 | `Space`         | Pause / resume the simulation                                        |
 | `S`             | Single-step one fixed step (only meaningful when paused)             |
-| `R`             | Reseed without changing the seed input — visualizes BUG-004          |
+| `R`             | Reseed without changing the seed input — digest must stay identical  |
 | `H`             | Toggle the HUD (clean capture mode)                                  |
 | `T`             | Toggle particle motion trails                                        |
 | `+` / `-`       | Speed up / slow down simulation time                                 |
 | `LMB` drag      | Grab + drag the nearest dynamic rope/cloth node                      |
 | `RMB`           | Spawn a 12-particle burst at the cursor                              |
-| `F1`            | Deliberate null-deref crash (Session 02 crash-dump demo)             |
+| `F1`            | Deliberate null-deref crash (crash-dump demo)                        |
 | `Esc`           | Quit                                                                 |
 
-### Bug-visibility cheat sheet
+### Determinism telemetry cheat sheet
 
-| Anchor   | Where it surfaces in the HUD                                            |
-| -------- | ----------------------------------------------------------------------- |
-| BUG-002  | `wall=… sim=… drift=±…ms` line (game_loop float accumulator drift)      |
-| BUG-004  | `trace_digest=…` line; press `R` and watch it diverge despite same seed |
-| BUG-006  | `frame_avg=…ms` rolling-window readout (frame_budget seeded defect)     |
+| HUD line             | What it proves                                                     |
+| -------------------- | ------------------------------------------------------------------ |
+| `wall=… sim=… drift` | game_loop double accumulator keeps sim time locked to wall time    |
+| `trace_digest=…`     | press `R`: same seed → identical digest (deterministic replay)     |
+| `frame_avg=…ms`      | frame_budget rolling-window average stays under the 16.67 ms budget |
 
 ### Determinism digest matrix
 
@@ -136,7 +116,7 @@ Headless seed=42, 60 fixed-step frames (verified locally on macOS / AppleClang 1
 | --------------- | ----------------------------------- |
 | rope            | `33a6319d856d4869`                  |
 | pendulum tower  | `b0b37e5a36eafa6a`                  |
-| cloth           | `ef6340b55f1b9edc`                  |
+| cloth           | `b5ea1701cd70e3b9`                  |
 | particle storm  | `968ce23fc350cfaf`                  |
 
 The rope digest is the canonical CI golden-trace value referenced by
@@ -188,7 +168,7 @@ jq -c 'select(.kind=="frame" and .t_total_us > 25000)' /tmp/sandbox.jsonl
 # All window/focus transitions:
 jq -c 'select(.kind=="event" and .category=="window")' /tmp/sandbox.jsonl
 
-# Reseed events with pre/post digests (BUG-004 visualizer):
+# Reseed events with pre/post digests (determinism check):
 jq -c 'select(.kind=="event" and .msg=="reseed")' /tmp/sandbox.jsonl
 
 # raylib WARN/ERROR lines:

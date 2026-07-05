@@ -29,12 +29,12 @@
   - [1.4 GitHub Copilot Ecosystem Integration](#14-github-copilot-ecosystem-integration)
   - [1.5 Copilot Custom Instructions Architecture](#15-copilot-custom-instructions-architecture)
   - [1.6 GitHub Copilot CLI — The Terminal Agent](#16-github-copilot-cli--the-terminal-agent)
-  - [1.7 The Reference Project: ea-cpp-games](#17-the-reference-project-ea-cpp-games)
+  - [1.7 The Reference Project: engine_demo](#17-the-reference-project-engine_demo)
 - [Part 2: Hands-On Practice — Adding More Features](#part-2-hands-on-practice--adding-more-features)
   - [2.1 Session Overview](#21-session-overview)
   - [2.2 Rejection and Re-Specification Flow](#22-rejection-and-re-specification-flow)
-  - [2.3 Feature 2: Audio Event Bus (Condensed)](#23-feature-2-audio-event-bus-condensed)
-  - [2.4 Feature 3: Scene Transition System (Condensed)](#24-feature-3-scene-transition-system-condensed)
+  - [2.3 Feature 2: Lockless Ring Buffer (Condensed)](#23-feature-2-lockless-ring-buffer-condensed)
+  - [2.4 Feature 3: Fixed String (Condensed)](#24-feature-3-fixed-string-condensed)
   - [2.5 Reflection and Key Takeaways](#25-reflection-and-key-takeaways)
 - [Part 3: Use Case — Designing a New Game from an Existing Foundation](#part-3-use-case--designing-a-new-game-from-an-existing-foundation)
   - [3.1 Session Overview](#31-session-overview)
@@ -73,7 +73,7 @@ You're about to watch an expert drive GitHub Copilot through a complete feature 
 
 ![ENGINE_DEMO showcase — Rope scene with verlet-integrated particles, physics telemetry HUD, and frame budget monitor](../screenshot.png)
 
-_The `ea-cpp-games` physics sandbox: a C++20 engine with EASTL containers, constraint-based physics, and a real-time frame budget system. This is the codebase we'll be extending with Spec-Kit._
+_The `engine_demo` physics sandbox: a C++20 engine with EASTL containers, constraint-based physics, and a real-time frame budget system. This is the codebase we'll be extending with Spec-Kit._
 
 **What to watch for:**
 
@@ -100,18 +100,32 @@ flowchart LR
 
 _Each arrow is a Human-In-The-Loop (HITL) gate — the demo pauses for approval before advancing. This is the core discipline that makes AI-generated code governable._
 
+> **Command naming:** this workspace installs the Spec-Kit prompts under the `speckit.` prefix.
+> Wherever this document says `/constitution`, `/specify`, `/plan`, `/tasks`, or `/implement`
+> as a stage name, the actual command you type in Copilot Chat is `/speckit.constitution`,
+> `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, or `/speckit.implement`.
+> (The GitHub Copilot **CLI**'s `/plan` command in §1.6 and Appendix B is a different,
+> CLI-native feature and keeps its short name.)
+
+<!-- markdownlint-disable-next-line MD028 -->
+
 > **Facilitator says:** "Don't worry about understanding every concept yet. Just watch. We'll unpack the WHY in Part 1. Right now, absorb the WHAT."
 
 ---
 
 ### 0.2 Demo Setup
 
-| Requirement                                    | Status                |
-| ---------------------------------------------- | --------------------- |
-| `ea-cpp-games` repository cloned and building  | `ctest` green ✅      |
-| VS Code with Copilot Chat (Agent Mode enabled) | Connected ✅          |
-| `specs/constitution.md` open in editor         | 8 articles visible ✅ |
-| `AGENTS.md` open in editor                     | Hard rules visible ✅ |
+| Requirement                                            | Status                |
+| ------------------------------------------------------ | --------------------- |
+| `speckit-workshop-demo` repository cloned and building | `ctest` green ✅      |
+| VS Code with Copilot Chat (Agent Mode enabled)         | Connected ✅          |
+| `specs/constitution.md` open in editor                 | 8 articles visible ✅ |
+| `AGENTS.md` open in editor                             | Hard rules visible ✅ |
+| Fallback branch available (`git branch -a`)            | `demo-fallback` ✅    |
+
+> **Stage insurance:** if live generation stalls mid-demo, `git checkout demo-fallback`
+> contains the completed `specs/particle-vfx/` artifacts and the implemented, tested
+> subsystem — you can jump to any step's finished state instantly.
 
 **Build verification (run this before demo starts):**
 
@@ -158,8 +172,8 @@ For the **Particle VFX Subsystem**, the relevant constraints are:
 
 **Prompt to Copilot:**
 
-```
-/specify
+```text
+/speckit.specify
 
 Create a specification for a Particle VFX Subsystem for engine_demo.
 
@@ -203,7 +217,7 @@ The output includes:
 
 **🚨 HITL GATE:** Review the spec. All 8 articles addressed? Acceptance criteria measurable? Scope boundaries clear?
 
-✅ **Approve** → proceed to `/plan`
+✅ **Approve** → proceed to `/speckit.plan`
 
 ---
 
@@ -215,8 +229,8 @@ The output includes:
 
 **Prompt to Copilot:**
 
-```
-/plan
+```text
+/speckit.plan
 
 Based on specs/particle-vfx/spec.md and specs/constitution.md, produce an implementation
 plan for the Particle VFX Subsystem.
@@ -247,7 +261,7 @@ Requirements for the plan:
 - Test ordering satisfies Article 7 (test-first)? ✅ Tests before force implementation
 - Each task < 150 lines? ✅ Largest is 120 lines
 
-✅ **Approve** → proceed to `/tasks`
+✅ **Approve** → proceed to `/speckit.tasks`
 
 ---
 
@@ -259,8 +273,8 @@ Requirements for the plan:
 
 **Prompt to Copilot:**
 
-```
-/tasks
+```text
+/speckit.tasks
 
 Decompose specs/particle-vfx/plan.md into implementable tasks. Each task must:
 - Be < 150 lines of diff
@@ -283,7 +297,7 @@ Decompose specs/particle-vfx/plan.md into implementable tasks. Each task must:
 
 **🚨 HITL GATE:** Task sizing review. Dependencies ordered correctly? Test-first maintained?
 
-✅ **Approve** → proceed to `/implement`
+✅ **Approve** → proceed to `/speckit.implement`
 
 ---
 
@@ -295,8 +309,8 @@ Decompose specs/particle-vfx/plan.md into implementable tasks. Each task must:
 
 **Prompt to Copilot:**
 
-```
-/implement task 1
+```text
+/speckit.implement task 1
 
 Implement the particle data types header as specified in specs/particle-vfx/tasks.md Task 1.
 File: include/engine_demo/vfx/particle.h
@@ -376,7 +390,7 @@ cmake --build --preset default-debug
 
 You just watched Spec-Kit drive a feature from idea to working code in 5 stages:
 
-```
+```text
 ┌─────────────┐    ┌──────────┐    ┌────────┐    ┌────────┐    ┌─────────────┐
 │/constitution│───▶│ /specify  │───▶│ /plan  │───▶│ /tasks │───▶│ /implement  │
 └─────────────┘    └──────────┘    └────────┘    └────────┘    └─────────────┘
@@ -440,7 +454,7 @@ Modern AI coding assistants can generate code at remarkable speed, but without d
 | Cost                           | Mitigation                                                                                                                                         |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Upfront time investment**    | Writing a spec takes 10-20 min. But a single vague prompt followed by 2 hours of debugging costs more. The ROI is 3-5× on any feature > 100 lines. |
-| **Learning curve**             | The five-stage flow takes 2-3 repetitions to internalize. Sessions 06-07 provide that practice.                                                    |
+| **Learning curve**             | The five-stage flow takes 2-3 repetitions to internalize. Part 2's hands-on features provide that practice.                                        |
 | **Overhead for trivial tasks** | A 20-line bug fix doesn't need five stages. Scale the methodology to the task.                                                                     |
 | **Discipline fatigue**         | HITL gates feel slow. That friction is intentional — it catches errors when they're cheapest to fix.                                               |
 
@@ -536,7 +550,7 @@ The methodology provides the stages. Professional judgment decides which stages 
 
 ### 1.2 The Five-Stage Spec-Kit Flow
 
-```
+```text
 ┌─────────────┐    ┌──────────┐    ┌────────┐    ┌────────┐    ┌─────────────┐
 │ /constitution│───▶│ /specify │───▶│ /plan  │───▶│ /tasks │───▶│ /implement  │
 └─────────────┘    └──────────┘    └────────┘    └────────┘    └─────────────┘
@@ -549,13 +563,13 @@ The methodology provides the stages. Professional judgment decides which stages 
                                    └─────────┘    └─────────┘    └─────────┘
 ```
 
-| Stage           | Input                            | Output                                                      | Gate                                                        |
-| --------------- | -------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------- |
-| `/constitution` | Project values, hard constraints | Binding articles document                                   | Human reads aloud, confirms                                 |
-| `/specify`      | Problem statement + constitution | Formal specification (`spec.md`)                            | Human reviews acceptance criteria                           |
-| `/plan`         | Specification + constitution     | Architecture decisions, data structures, test strategy      | **HITL: Human approves before decomposition**               |
-| `/tasks`        | Plan + constitution              | Ordered list of implementable work items (< 150 lines each) | **HITL: Human approves sizing**                             |
-| `/implement`    | One task at a time               | Code diff + test                                            | **HITL: Human reads diff, runs ctest, approves or rejects** |
+| Stage                   | Input                            | Output                                                      | Gate                                                        |
+| ----------------------- | -------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------- |
+| `/speckit.constitution` | Project values, hard constraints | Binding articles document                                   | Human reads aloud, confirms                                 |
+| `/speckit.specify`      | Problem statement + constitution | Formal specification (`spec.md`)                            | Human reviews acceptance criteria                           |
+| `/speckit.plan`         | Specification + constitution     | Architecture decisions, data structures, test strategy      | **HITL: Human approves before decomposition**               |
+| `/speckit.tasks`        | Plan + constitution              | Ordered list of implementable work items (< 150 lines each) | **HITL: Human approves sizing**                             |
+| `/speckit.implement`    | One task at a time               | Code diff + test                                            | **HITL: Human reads diff, runs ctest, approves or rejects** |
 
 ### 1.3 Core Principles
 
@@ -596,18 +610,18 @@ Tasks must produce diffs of **≤ 150 lines**. Larger tasks are rejected and spl
 
 These practices distill the Spec-Kit methodology into actionable habits. Each maps directly to a stage or principle covered in this workshop.
 
-| #   | Practice                        | What It Means                                                                                                                                                               | Where Demonstrated                    |
-| --- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| 1   | **Define Clear Objectives**     | State the exact goal before writing any code. Use `/specify` with measurable acceptance criteria — not "make it fast" but "< 2ms for 500 particles at 60 FPS."              | §1.3 `/specify` stage                 |
-| 2   | **Modularize the Plan**         | Break work into small, digestible chunks. Every task produces a diff of ≤ 150 lines — right-sized for human review and cheap to roll back.                                  | §1.5 `/tasks` decomposition           |
-| 3   | **Establish Constraints**       | Explicitly state performance, stylistic, or architectural boundaries. The `/constitution` stage encodes these as binding articles that gate every downstream decision.      | §1.2 `/constitution` stage            |
-| 4   | **Draft a Markdown Plan**       | Always maintain a central `.md` file as the source of truth. The `spec.md`, `plan.md`, and `tasks.md` files ARE the project memory — persistent, versionable, diffable.     | §1.3–1.5 spec/plan/tasks outputs      |
-| 5   | **Iterate on the Spec**         | Review and refine the plan with Copilot before executing it. Stage roll-back discipline: if implementation fails 3×, the spec is wrong — fix upstream.                      | §2.2 Rejection flow                   |
-| 6   | **Provide Contextual Anchors**  | Point Copilot to relevant existing files or APIs. Use `copilot-instructions.md`, `.instructions.md` files, and explicit file references in prompts to keep the AI grounded. | §0.5 Custom instructions architecture |
-| 7   | **Sequential Execution**        | Have the agent tackle one stage at a time. `/implement` runs one task, pauses for review, then proceeds. Never batch multiple tasks into a single generation.               | §1.6 `/implement` with HITL           |
-| 8   | **Implement Strict Guardrails** | Define what the AI should not touch or modify. `AGENTS.md` declares hard rules; `--deny-tool` in CLI prevents dangerous operations. The AI knows its boundaries.            | §0.5 AGENTS.md; Appendix B CLI flags  |
-| 9   | **Test-Driven Prompts**         | Include unit testing requirements within the spec itself. Every spec has a §Test Plan; every task has acceptance gates that include running tests.                          | §1.3 spec §7 Test Plan                |
-| 10  | **Human-in-the-Loop Review**    | Validate each completed stage before moving to the next. HITL gates between every stage transition are non-negotiable — the friction catches errors at their cheapest.      | §0.3 HITL principle; every stage gate |
+| #   | Practice                        | What It Means                                                                                                                                                                  | Where Demonstrated                    |
+| --- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| 1   | **Define Clear Objectives**     | State the exact goal before writing any code. Use `/speckit.specify` with measurable acceptance criteria — not "make it fast" but "< 2ms for 500 particles at 60 FPS."         | §0.4 `/specify` demo                  |
+| 2   | **Modularize the Plan**         | Break work into small, digestible chunks. Every task produces a diff of ≤ 150 lines — right-sized for human review and cheap to roll back.                                     | §0.6 `/tasks` decomposition           |
+| 3   | **Establish Constraints**       | Explicitly state performance, stylistic, or architectural boundaries. The `/speckit.constitution` stage encodes these as binding articles that gate every downstream decision. | §0.3 constitution grounding           |
+| 4   | **Draft a Markdown Plan**       | Always maintain a central `.md` file as the source of truth. The `spec.md`, `plan.md`, and `tasks.md` files ARE the project memory — persistent, versionable, diffable.        | §0.4–0.6 spec/plan/tasks outputs      |
+| 5   | **Iterate on the Spec**         | Review and refine the plan with Copilot before executing it. Stage roll-back discipline: if implementation fails 3×, the spec is wrong — fix upstream.                         | §2.2 Rejection flow                   |
+| 6   | **Provide Contextual Anchors**  | Point Copilot to relevant existing files or APIs. Use `copilot-instructions.md`, `.instructions.md` files, and explicit file references in prompts to keep the AI grounded.    | §1.5 Custom instructions architecture |
+| 7   | **Sequential Execution**        | Have the agent tackle one stage at a time. `/speckit.implement` runs one task, pauses for review, then proceeds. Never batch multiple tasks into a single generation.          | §0.7 `/implement` with HITL           |
+| 8   | **Implement Strict Guardrails** | Define what the AI should not touch or modify. `AGENTS.md` declares hard rules; `--deny-tool` in CLI prevents dangerous operations. The AI knows its boundaries.               | §1.5 AGENTS.md; Appendix B CLI flags  |
+| 9   | **Test-Driven Prompts**         | Include unit testing requirements within the spec itself. Every spec has a §Test Plan; every task has acceptance gates that include running tests.                             | §0.4 spec §7 Test Plan                |
+| 10  | **Human-in-the-Loop Review**    | Validate each completed stage before moving to the next. HITL gates between every stage transition are non-negotiable — the friction catches errors at their cheapest.         | §1.3 HITL principle; every stage gate |
 
 #### Applying the Top 10 in Practice
 
@@ -622,31 +636,36 @@ These practices distill the Spec-Kit methodology into actionable habits. Each ma
 
 Spec-Kit leverages multiple GitHub Copilot surfaces:
 
-| Surface                    | Role in Spec-Kit                                                                                                                                  |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Copilot Chat (VS Code)** | Primary interface for `/specify`, `/plan`, `/tasks`, `/implement` stages. Agent mode with workspace context.                                      |
-| **Copilot Cloud Agent**    | Autonomous task execution from GitHub Issues. Respects `AGENTS.md` and `copilot-instructions.md`. Creates PRs for HITL review.                    |
-| **Copilot CLI**            | Terminal-based agentic interface. Plan mode for architecture analysis. Programmatic mode for scripted spec generation.                            |
-| **Custom Instructions**    | `.github/copilot-instructions.md` encodes the constitution. `AGENTS.md` enforces hard rules. `.instructions.md` files target specific file types. |
-| **MCP Servers**            | Extend Copilot with external tools (linters, build systems, test runners) for validation during `/implement`.                                     |
-| **Prompt Files**           | `.prompt.md` files encode reusable spec-kit workflows as parameterized templates.                                                                 |
-| **Custom Agents**          | Specialized personas (e.g., `reviewer.agent.md`) for code review, spec validation, or architecture critique.                                      |
+| Surface                    | Role in Spec-Kit                                                                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Copilot Chat (VS Code)** | Primary interface for `/specify`, `/plan`, `/tasks`, `/implement` stages. Agent mode with workspace context.                                         |
+| **Copilot Cloud Agent**    | Autonomous task execution from GitHub Issues. Respects `AGENTS.md` and `copilot-instructions.md`. Creates PRs for HITL review.                       |
+| **Copilot CLI**            | Terminal-based agentic interface. Plan mode for architecture analysis. Programmatic mode for scripted spec generation.                               |
+| **Custom Instructions**    | `.github/copilot-instructions.md` encodes the constitution. `AGENTS.md` enforces hard rules. `.instructions.md` files target specific file types.    |
+| **MCP Servers**            | Extend Copilot with external tools (linters, build systems, test runners) for validation during `/implement`.                                        |
+| **Prompt Files**           | `.prompt.md` files encode reusable spec-kit workflows as parameterized templates.                                                                    |
+| **Custom Agents**          | Specialized personas (this repo ships the `speckit.*.agent.md` stage agents in `.github/agents/`) for spec validation, planning, and implementation. |
 
 ### 1.5 Copilot Custom Instructions Architecture
 
 The custom instructions hierarchy enforces constitutional rules at every level:
 
-```
+```text
 Repository Root
 ├── .github/
-│   ├── copilot-instructions.md       ← Repository-wide rules (applies to ALL Copilot interactions)
-│   └── instructions/
-│       ├── cpp-core.instructions.md   ← Applies to **/*.cpp, **/*.h
-│       ├── tests.instructions.md      ← Applies to **/test_*.cpp
-│       └── specs.instructions.md      ← Applies to specs/**/*.md
+│   ├── copilot-instructions.md        ← Repository-wide rules (applies to ALL Copilot interactions)
+│   ├── instructions/
+│   │   ├── cpp-impl.instructions.md   ← Applies to src/**/*.cpp, include/**/*.h
+│   │   └── tests.instructions.md      ← Applies to **/test_*.cpp
+│   ├── prompts/
+│   │   └── speckit.*.prompt.md        ← The /speckit.* slash commands
+│   └── agents/
+│       └── speckit.*.agent.md         ← Spec-Kit stage agents
 ├── AGENTS.md                          ← Agent-level hard rules (Cloud Agent + CLI)
+├── .specify/
+│   └── memory/constitution.md         ← Machine-readable constitution (read by /speckit.*)
 ├── specs/
-│   └── constitution.md                ← The Spec-Kit ground truth
+│   └── constitution.md                ← The Spec-Kit ground truth (human-facing)
 └── src/
     └── ...
 ```
@@ -707,9 +726,9 @@ copilot -p "Analyze the ECS and generate migration spec" \
 copilot --allow-all-tools --deny-tool='shell(rm)' --deny-tool='shell(git push)'
 ```
 
-### 1.7 The Reference Project: ea-cpp-games
+### 1.7 The Reference Project: engine_demo
 
-All three use cases in this workshop are built around `ea-cpp-games` — a synthetic C++20 game engine designed for teaching:
+All three use cases in this workshop are built around `engine_demo` (the `speckit-workshop-demo` repository) — a synthetic C++20 game engine designed for teaching:
 
 **What it is:** A 2D physics sandbox with 4 playable scenes (Rope, Pendulum Tower, Cloth, Particle Storm) using verlet integration, EASTL containers, and a custom arena allocator.
 
@@ -755,14 +774,14 @@ ctest --preset default-debug --output-on-failure
 | ---------------- | ------------------------------------------------------------------------------------- |
 | **Objective**    | Practice the Spec-Kit flow independently and learn the rejection/roll-back discipline |
 | **Duration**     | 60 minutes                                                                            |
-| **Features**     | (1) Audio Event Bus, (2) Scene Transition System                                      |
+| **Features**     | (1) Lockless Ring Buffer, (2) Fixed String — pre-staged in `specs/`                   |
 | **Key Learning** | "When implementation fails 3×, the spec is wrong — not the code"                      |
 
 **Prerequisites:**
 
 - Completed the live demo (Part 0) — you've seen the full flow end-to-end
 - Completed Part 1 — you understand the principles behind HITL gates, right-sizing, and stage roll-back
-- ea-cpp-games repository cloned and building (`ctest` green)
+- speckit-workshop-demo repository cloned and building (`ctest` green)
 
 ---
 
@@ -777,22 +796,22 @@ using force_fn = std::function<vec2(particle const&, double)>;
 
 **First Rejection:**
 
-> "Rejected. Article 3 requires EASTL-first. Replace `std::function` with `eastl::function` taking explicit allocator per Article 4."
+> "Rejected. Article 3 requires EASTL-first. Replace `std::function` with an EASTL-compatible callable per Article 4."
 
-Copilot regenerates:
+Copilot regenerates with `eastl::fixed_function` (EASTL's `eastl::function` has no allocator template parameter; `fixed_function` stores the callable inline, which also satisfies Article 6):
 
 ```cpp
-// ✅ Corrected
-using force_fn = eastl::function<vec2(particle const&, double), engine_demo::allocator>;
+// ✅ Corrected (inline storage, no heap, no allocator needed)
+using force_fn = eastl::fixed_function<32, vec2(particle const&, double)>;
 ```
 
 **What if rejected 3×?**
 
-If the third attempt still violates (e.g., Copilot struggles with `eastl::function`'s allocator requirement):
+If the third attempt still violates (e.g., Copilot keeps reaching for heap-backed callables):
 
-> **Roll back to `/specify`.**
+> **Roll back to `/speckit.specify`.**
 
-The facilitator identifies: "The spec says `force_fn` uses `eastl::function` but doesn't specify HOW to handle the allocator for function objects stored in a vector. We need to tighten §5.2."
+The facilitator identifies: "The spec says forces are callables but doesn't specify HOW they are stored without allocating. We need to tighten §5.2."
 
 **Tightened spec §5.2:**
 
@@ -800,7 +819,7 @@ The facilitator identifies: "The spec says `force_fn` uses `eastl::function` but
 ### 5.2 Force Application (Revised)
 
 Forces are applied during `tick()`. Each force is a stateless function pointer (not a
-capturing lambda) to avoid allocator complexity in eastl::function:
+capturing lambda) to avoid callable-storage complexity entirely:
 
     using force_fn = vec2(*)(particle const&, double t);
 
@@ -813,78 +832,83 @@ This is the **stage roll-back discipline** in action: the spec was imprecise, so
 
 ---
 
-### 2.3 Feature 2: Audio Event Bus (Condensed)
+### 2.3 Feature 2: Lockless Ring Buffer (Condensed)
+
+> Pre-staged skeleton: [`specs/lockless-ring-buffer/`](../specs/lockless-ring-buffer/) — run the
+> five-stage flow live against its brief.
 
 **Spec Summary:**
 
-A lockless, single-producer/single-consumer audio event bus for cross-thread communication between the sim thread and the audio render thread. Uses the same ring-buffer pattern as `lockless-ring-buffer` (Session 06) but typed to audio events.
+A single-producer / single-consumer lockless ring buffer for cross-thread message hand-off
+in `engine_demo` (e.g., sim thread → audio/render thread). Capacity is fixed at
+construction; storage comes from an `engine_demo::allocator&`. Backpressure policy is
+**drop-oldest** when full (configurable as a stretch goal).
 
 **Constitution Application:**
 
-- Article 6 is paramount: no allocation in the audio callback thread
-- Article 5: event ordering must be deterministic
-- Article 1: overflow returns `bus_status::full`, never throws
+- Article 6 is paramount: no allocation and no locks after construction
+- Article 5: event ordering must be deterministic (FIFO, single producer)
+- Article 1: overflow returns `ring_status::full` (or drops oldest), never throws
+- Article 4: backing storage allocated once from the explicit allocator
 
 **Key Spec Excerpt:**
 
 ```markdown
-## Audio Event Bus — Specification
+## Lockless Ring Buffer — Specification
 
 ### Data Model
 
-enum class audio_event_type : uint8_t { play, stop, set_volume, set_pan };
+enum class ring_status : uint8_t { ok, full, empty };
 
-struct audio_event {
-audio_event_type type;
-uint32_t sound_id;
-float parameter; // volume for set_volume, pan for set_pan
-};
+template <typename T>
+class ring_buffer; // capacity fixed at construction, power-of-two
 
 ### Behavioral Contract
 
-- Fixed-capacity ring buffer (default 256 events)
-- `push(audio_event)` → `bus_status` (sim thread, producer)
-- `pop()` → `eastl::optional<audio_event>` (audio thread, consumer)
+- Fixed-capacity ring buffer (default 256 slots)
+- `push(T const&)` → `ring_status` (producer thread only)
+- `pop()` → `eastl::optional<T>` (consumer thread only)
+- Atomics protocol: acquire/release on head/tail indices; no mutexes
 - Backpressure: drop-oldest when full (configurable)
 ```
 
-**Task Count:** 3 tasks (data types, ring buffer core, tests)
+**Task Count:** 4–6 tasks (data types + config, atomics protocol, push/pop core, tests)
 
 ---
 
-### 2.4 Feature 3: Scene Transition System (Condensed)
+### 2.4 Feature 3: Fixed String (Condensed)
+
+> Pre-staged skeleton: [`specs/fixed-string/`](../specs/fixed-string/) — same five-stage
+> cadence.
 
 **Spec Summary:**
 
-A state-machine-based scene transition system with fade effects. Manages the lifecycle of loading, unloading, and crossfading between the 4 sandbox scenes.
+A stack-allocated, fixed-capacity string type for `engine_demo` debug labels and
+small-string scenarios. Capacity is a non-type template parameter. Never allocates;
+interoperates with `eastl::string_view`.
 
 **Key Spec Excerpt:**
 
 ```markdown
-## Scene Transition — Specification
+## Fixed String — Specification
 
-### States
+### Data Model
 
-enum class scene_state : uint8_t {
-inactive, loading, fade_in, active, fade_out, unloading
-};
+template <size_t Capacity>
+class fixed_string; // stack storage: char data[Capacity + 1]
 
-### Transition Config
+enum class append_status : uint8_t { ok, truncated };
 
-struct transition_config {
-float fade_duration; // seconds
-scene_state target_state;
-uint32_t target_scene_index; // index into scene registry
-};
+### Behavioral Contract
 
-### Machine
-
-- `request_transition(transition_config)` → `transition_status`
-- `tick(double dt)` advances the state machine
-- Only one transition active at a time (subsequent requests queue)
+- `append(eastl::string_view)` → `append_status` (truncates at capacity, never throws)
+- `view()` → `eastl::string_view` (interop boundary, Article 3)
+- `size()`, `capacity()`, `clear()` — all noexcept, all O(1)
+- Compiles under -fno-exceptions -fno-rtti; zero heap usage (Articles 1, 2, 6)
 ```
 
-**Task Count:** 4 tasks (state enum + config, state machine core, fade interpolation, tests + integration)
+**Task Count:** 4 tasks (class skeleton + storage, append/truncation semantics,
+string_view interop, tests + stretch goal wiring)
 
 ---
 
@@ -916,7 +940,7 @@ uint32_t target_scene_index; // index into scene registry
 **Prerequisites:**
 
 - Completed Parts 0–2 (understand the 5-stage flow and practiced it hands-on)
-- Familiarity with ea-cpp-games subsystems (ECS, physics, RNG, frame budget)
+- Familiarity with engine_demo subsystems (ECS, physics, RNG, frame budget)
 - Understanding of the constitutional model
 
 **Value Proposition:** Starting a new game without Spec-Kit leads to "blank page paralysis" followed by ad-hoc decisions that conflict with the engine's design principles. Spec-Kit forces you to explicitly state what you're building BEFORE you build it, ensuring the new game inherits the engine's architectural strengths.
@@ -995,8 +1019,8 @@ crossing frame boundaries). This enables replay, spectating, and rollback netcod
 
 **Prompt to Copilot:**
 
-```
-/specify
+```text
+/speckit.specify
 
 Design "Orbital Arena" — a competitive 2D physics game built on the engine_demo foundation.
 
@@ -1255,12 +1279,12 @@ If someone says "add networking," the response is: "Write a `/specify` for it. W
 
 ### 4.1 Session Overview
 
-|                  |                                                                                                   |
-| ---------------- | ------------------------------------------------------------------------------------------------- |
-| **Objective**    | Transform ea-cpp-games from C++20/raylib to Rust/Bevy ECS using Spec-Kit as the translation layer |
-| **Duration**     | 90 minutes                                                                                        |
-| **Approach**     | Reverse-spec the C++ → write Rust constitution → plan transformation → implement in Rust          |
-| **Key Learning** | Specs are language-agnostic; the same spec can drive implementation in any language               |
+|                  |                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| **Objective**    | Transform engine_demo from C++20/raylib to Rust/Bevy ECS using Spec-Kit as the translation layer |
+| **Duration**     | 90 minutes                                                                                       |
+| **Approach**     | Reverse-spec the C++ → write Rust constitution → plan transformation → implement in Rust         |
+| **Key Learning** | Specs are language-agnostic; the same spec can drive implementation in any language              |
 
 **Prerequisites:**
 
@@ -1273,7 +1297,7 @@ If someone says "add networking," the response is: "Write a `/specify` for it. W
 
 **The transformation pipeline:**
 
-```
+```text
 ┌──────────────────┐     ┌─────────────────┐     ┌──────────────────┐
 │  C++20 / raylib  │────▶│  Spec Documents │────▶│  Rust / Bevy ECS │
 │  (source impl)   │     │  (language-free) │     │  (target impl)   │
@@ -1291,8 +1315,8 @@ If someone says "add networking," the response is: "Write a `/specify` for it. W
 
 **Prompt to Copilot (VS Code Agent Mode):**
 
-```
-/specify (reverse)
+```text
+/speckit.specify (reverse)
 
 Analyze the ECS World subsystem in include/engine_demo/ecs/world.h and
 src/engine_demo/ecs/world.cpp. Extract a language-agnostic specification that
@@ -1588,7 +1612,7 @@ This section demonstrates using **GitHub Copilot CLI** for the transformation wo
 #### Scenario A: Interactive Plan Mode — Analyzing Existing Architecture
 
 ```bash
-cd /path/to/ea-cpp-games
+cd /path/to/speckit-workshop-demo
 copilot
 ```
 
@@ -1770,7 +1794,7 @@ applyTo: "**/*.rs"
 
 The ultimate validation of a cross-language transformation:
 
-```
+```text
 C++ (seed=42, 1000 frames) → state hash = 0xABCD1234
 Rust (seed=42, 1000 frames) → state hash = 0xABCD1234  ← Must match!
 ```
@@ -1795,13 +1819,13 @@ Write a "golden file" test that captures the C++ output at a known seed and fram
 
 ### The Five Stages
 
-| Stage        | Command         | Input                  | Output                       | Gate                           |
-| ------------ | --------------- | ---------------------- | ---------------------------- | ------------------------------ |
-| Ground Truth | `/constitution` | Project values         | Binding articles             | Human confirms                 |
-| Requirements | `/specify`      | Problem + constitution | `spec.md`                    | Human reviews criteria         |
-| Architecture | `/plan`         | Spec + constitution    | Design document              | **HITL: Approve before tasks** |
-| Work Items   | `/tasks`        | Plan + constitution    | Task list (< 150 lines each) | **HITL: Approve sizing**       |
-| Code         | `/implement`    | One task               | Diff + tests                 | **HITL: Review diff + ctest**  |
+| Stage        | Command                 | Input                  | Output                       | Gate                           |
+| ------------ | ----------------------- | ---------------------- | ---------------------------- | ------------------------------ |
+| Ground Truth | `/speckit.constitution` | Project values         | Binding articles             | Human confirms                 |
+| Requirements | `/speckit.specify`      | Problem + constitution | `spec.md`                    | Human reviews criteria         |
+| Architecture | `/speckit.plan`         | Spec + constitution    | Design document              | **HITL: Approve before tasks** |
+| Work Items   | `/speckit.tasks`        | Plan + constitution    | Task list (< 150 lines each) | **HITL: Approve sizing**       |
+| Code         | `/speckit.implement`    | One task               | Diff + tests                 | **HITL: Review diff + ctest**  |
 
 ### Recovery Patterns
 
@@ -1809,21 +1833,21 @@ Write a "golden file" test that captures the C++ output at a known seed and fram
 | ---------------------------- | ------------------------------------------------------- |
 | Task rejected once           | Re-prompt with explicit constitutional citation         |
 | Task rejected twice          | Examine plan for misaligned architecture                |
-| Task rejected 3×             | **Roll back to `/specify`** — the spec is wrong         |
+| Task rejected 3×             | **Roll back to `/speckit.specify`** — the spec is wrong |
 | Task too large (> 150 lines) | Reject and ask for split                                |
 | Constitution violated        | Reject immediately; cite article number                 |
 | Tests fail                   | Reject; ask Copilot to fix while preserving spec intent |
 
 ### Anti-Patterns
 
-| Don't                               | Do Instead                          |
-| ----------------------------------- | ----------------------------------- |
-| Skip `/constitution`                | Always establish ground truth first |
-| Approve without reading diff        | Read every line; run every test     |
-| Let scope grow mid-session          | New features → new `/specify` cycle |
-| Fix the code when the spec is wrong | Fix the spec, regenerate the code   |
-| Generate > 150 lines in one task    | Split into right-sized tasks        |
-| Auto-approve all HITL gates         | The friction is the feature         |
+| Don't                               | Do Instead                                  |
+| ----------------------------------- | ------------------------------------------- |
+| Skip `/speckit.constitution`        | Always establish ground truth first         |
+| Approve without reading diff        | Read every line; run every test             |
+| Let scope grow mid-session          | New features → new `/speckit.specify` cycle |
+| Fix the code when the spec is wrong | Fix the spec, regenerate the code           |
+| Generate > 150 lines in one task    | Split into right-sized tasks                |
+| Auto-approve all HITL gates         | The friction is the feature                 |
 
 ---
 
@@ -1840,7 +1864,7 @@ gh extension install github/gh-copilot  # Legacy — now use:
 # See: https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli
 ```
 
-### Interactive Mode
+### Interactive Mode (CLI)
 
 ```bash
 copilot                          # Start interactive session
@@ -1863,7 +1887,7 @@ copilot --model claude-sonnet    # Start with specific model
 | `/allow-all` | Allow all tools without approval (current session) |
 | `/feedback`  | Submit feedback to GitHub                          |
 
-### Programmatic Mode
+### Programmatic Mode (CLI)
 
 ```bash
 # Single prompt execution
@@ -2017,7 +2041,3 @@ If you draft `std::vector` or `try`/`catch`, STOP and re-read this file.
 > - Session delivery: Part 0 (20 min demo) + Parts 1–4 map to facilitated sessions
 > - Hands-on exercises: Participants replicate the demonstrated flows on their own branch
 > - Assessment: Use the reflection questions at the end of each section for group discussion
-
-```
-
-```

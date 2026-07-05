@@ -1,10 +1,11 @@
 // Fixed-step game loop with accumulator.
 //
 // Constitutional articles satisfied:
-//   - 5 (determinism — note SEEDED DEFECT)
+//   - 5 (determinism: double accumulator)
 //   - 6 (real-time)
 //
-// SEEDED DEFECT BUG-002: see src/engine_demo/sim/game_loop.cpp.
+// FIX BUG-002: accumulator is now `double` per Article 5; the former `float`
+// accumulator drifted after ~30 s of simulated time.
 
 #pragma once
 
@@ -30,8 +31,8 @@ class [[nodiscard]] game_loop {
 
    private:
     game_loop_config m_cfg;
-    // BUG-002 anchor: this is intentionally `float` rather than `double`.
-    float m_accumulator_seconds{0.0f};
+    // Article 5: time accumulators are double, never float.
+    double m_accumulator_seconds{0.0};
 };
 
 }  // namespace engine_demo::sim

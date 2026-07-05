@@ -14,8 +14,8 @@ TEST(rng, same_seed_gives_same_stream) {
     }
 }
 
-// REGRESSION TEST for BUG-005 (CWE-197). Fails under the seeded downcast.
-TEST(rng, DISABLED_distinct_high_words_yield_distinct_streams) {
+// REGRESSION TEST for BUG-005 (CWE-197). Guards the XOR-fold of the full 64-bit seed.
+TEST(rng, distinct_high_words_yield_distinct_streams) {
     engine_demo::sim::rng a{0x00000000CAFEBABEull};
     engine_demo::sim::rng b{0xDEADBEEFCAFEBABEull};
     bool any_diff = false;

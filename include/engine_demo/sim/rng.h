@@ -2,13 +2,12 @@
 //
 // Constitutional article 5 (determinism): seed must be carried at full uint64_t width.
 //
-// SEEDED DEFECT BUG-005: see src/engine_demo/sim/rng.cpp.
+// FIX BUG-005: the 64-bit seed is XOR-folded into the engine seed (see rng.cpp).
 
 #pragma once
 
 // Interop boundary (constitution Article 3): std::mt19937 is used here because EASTL
-// does not ship a Mersenne Twister engine. The seeded BUG-005 truncation defect is
-// independent of which engine is wired underneath.
+// does not ship a Mersenne Twister engine.
 #include <cstdint>
 #include <random>
 

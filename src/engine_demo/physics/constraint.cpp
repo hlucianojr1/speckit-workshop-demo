@@ -1,23 +1,31 @@
 // Constraint solver.
 //
-// SEEDED DEFECT BUG-004 (Session 04 logic anchor):
-//   solve() iterates over m_constraints in vector order — fine — but reads body state by
-//   key from m_bodies (eastl::hash_map). When a constraint touches a body whose neighbour
-//   hash collides differently across runs, the projection order changes and the solver
-//   converges to slightly different positions. Replay diverges by O(1e-9) per frame,
-//   accumulating over seconds.
-//
-//   The constitutional fix is to sort constraints by (min(a,b), max(a,b)) once at insertion
-//   and read body state through a deterministic index instead of via the hash map.
-//
-// FALSE-POSITIVE companion FP-002: the loop's trailing iteration appears to read past the
-// end of m_constraints, but it is a sentinel iteration that exits before any read.
+// FIX BUG-004: body state lives in a key-sorted eastl::vector_map and constraints are
+// kept sorted by their canonical (min(a,b), max(a,b)) key at insertion. Projection order
+// is therefore deterministic across runs and across construction orders (Article 5).
 
 #include "engine_demo/physics/constraint.h"
 
 #include <cmath>
 
 namespace engine_demo::physics {
+
+namespace {
+
+struct canonical_key {
+    std::uint64_t lo;
+    std::uint64_t hi;
+};
+
+[[nodiscard]] canonical_key key_of(const distance_constraint& c) noexcept {
+    return c.a < c.b ? canonical_key{c.a, c.b} : canonical_key{c.b, c.a};
+}
+
+[[nodiscard]] bool key_less(const canonical_key& x, const canonical_key& y) noexcept {
+    return x.lo != y.lo ? x.lo < y.lo : x.hi < y.hi;
+}
+
+}  // namespace
 
 constraint_solver::constraint_solver(allocator& alloc) noexcept
     : m_alloc{alloc}, m_bodies{m_alloc}, m_constraints{m_alloc} {}
@@ -27,7 +35,14 @@ void constraint_solver::add_body(body b) noexcept {
 }
 
 void constraint_solver::add_constraint(distance_constraint c) noexcept {
-    m_constraints.push_back(c);
+    // Deterministic ordering (Article 5): keep the vector sorted by canonical key so
+    // projection order never depends on insertion order.
+    auto it = m_constraints.begin();
+    const canonical_key k = key_of(c);
+    while (it != m_constraints.end() && !key_less(k, key_of(*it))) {
+        ++it;
+    }
+    m_constraints.insert(it, c);
 }
 
 const body* constraint_solver::try_get_body(std::uint64_t id) const noexcept {
@@ -41,7 +56,7 @@ const body* constraint_solver::try_get_body(std::uint64_t id) const noexcept {
 std::uint32_t constraint_solver::solve(std::uint32_t max_iterations) noexcept {
     for (std::uint32_t iter = 0; iter < max_iterations; ++iter) {
         for (auto& c : m_constraints) {
-            // BUG-004: hash_map lookup order is non-deterministic across runs.
+            // Deterministic: vector_map lookup + canonical constraint order (Article 5).
             auto it_a = m_bodies.find(c.a);
             auto it_b = m_bodies.find(c.b);
             if (it_a == m_bodies.end() || it_b == m_bodies.end())

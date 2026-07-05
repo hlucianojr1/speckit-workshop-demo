@@ -3,7 +3,7 @@
 // Constitutional articles satisfied:
 //   - 1, 2, 3, 4 (no exceptions, no RTTI, EASTL, allocator-aware)
 //
-// SEEDED DEFECT BUG-003: see src/engine_demo/ecs/world.cpp.
+// FIX BUG-003: destroy_entity bumps the slot generation (CWE-416 guard).
 
 #pragma once
 

@@ -1,12 +1,8 @@
-// ECS world. Slot-based, generational handles ... ALMOST.
+// ECS world. Slot-based, generational handles.
 //
-// SEEDED DEFECT BUG-003 (Session 04 security anchor, CWE-416 use-after-free):
-//   destroy_entity() flips slot.alive to false but does NOT bump slot.generation. The next
-//   create_entity() that picks the same slot reuses the prior generation, so any handle
-//   captured before the destroy still passes is_alive() against the freshly-recycled slot.
-//   Downstream component lookups dereference the wrong logical entity.
-//
-// The "fix" is one line: `++m_slots[h.index].generation;` in destroy_entity().
+// FIX BUG-003 (CWE-416 use-after-free): destroy_entity() now bumps slot.generation so
+// that stale handles captured before the destroy can never validate against a recycled
+// slot.
 
 #include "engine_demo/ecs/world.h"
 
@@ -37,8 +33,8 @@ void world::destroy_entity(entity_handle h) noexcept {
     auto& s = m_slots[h.index];
     if (!s.alive || s.generation != h.generation)
         return;
-    // BUG-003: missing `++s.generation` here. Stale handles will revive on the next
-    // create_entity() that recycles this slot.
+    // Invalidate every outstanding handle to this slot before recycling it (CWE-416 guard).
+    ++s.generation;
     s.alive = false;
     if (m_live_count > 0)
         --m_live_count;

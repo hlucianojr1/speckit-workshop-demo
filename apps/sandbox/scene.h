@@ -8,9 +8,9 @@
 //
 // Owns:
 //   - allocator (arena) for all EASTL containers in this translation unit
-//   - constraint_solver (engine_demo::physics) - exercises BUG-004
-//   - game_loop          (engine_demo::sim)    - exercises BUG-002
-//   - frame_budget       (engine_demo)         - exercises BUG-006
+//   - constraint_solver (engine_demo::physics)
+//   - game_loop          (engine_demo::sim)
+//   - frame_budget       (engine_demo)
 //   - rng                (engine_demo::sim)    - deterministic seeding
 //
 // Constitutional articles: 1, 2, 3, 4, 5.

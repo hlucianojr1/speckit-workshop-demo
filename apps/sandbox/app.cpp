@@ -263,7 +263,7 @@ void draw_hud(const scene& s,
     draw_text_shadow(buf, sc(16, sc_), sc(40, sc_), sc(16, sc_), RAYWHITE);
 
     std::snprintf(
-        buf, sizeof(buf), "wall=%.2fs  sim=%.2fs  drift=%+.2fms  (BUG-002)", wall, sim, drift_ms);
+        buf, sizeof(buf), "wall=%.2fs  sim=%.2fs  drift=%+.2fms", wall, sim, drift_ms);
     Color drift_col = Color{200, 210, 220, 255};
     if (std::fabs(drift_ms) > 50.0)
         drift_col = Color{255, 220, 90, 255};
@@ -272,7 +272,7 @@ void draw_hud(const scene& s,
     draw_text_shadow(buf, sc(16, sc_), sc(62, sc_), sc(14, sc_), drift_col);
 
     const double avg = s.budget().rolling_average();
-    std::snprintf(buf, sizeof(buf), "frame_avg=%.2fms  fps=%d  (BUG-006)", avg, fps);
+    std::snprintf(buf, sizeof(buf), "frame_avg=%.2fms  fps=%d", avg, fps);
     Color fb_col = Color{200, 210, 220, 255};
     if (avg > 16.667)
         fb_col = Color{255, 220, 90, 255};
@@ -282,7 +282,7 @@ void draw_hud(const scene& s,
 
     std::snprintf(buf,
                   sizeof(buf),
-                  "trace_digest=%016llx  (BUG-004)",
+                  "trace_digest=%016llx",
                   static_cast<unsigned long long>(digest));
     Color dg_col = Color{200, 210, 220, 255};
     if (reseed_baseline_digest != 0 && digest != reseed_baseline_digest) {
@@ -544,8 +544,7 @@ void draw_shockwave(viewport vp) noexcept {
 }
 
 [[noreturn]] void trigger_demo_crash() noexcept {
-    // Deliberate null deref for the Session 02 crash-dump demo. Distinct from
-    // the seeded BUG-001 in engine_demo::allocator so seeded bugs stay untouched.
+    // Deliberate null deref for the crash-dump demo (F1 key).
     volatile int* p = nullptr;
     *p = 0xDEAD;
     for (;;) {
@@ -844,8 +843,8 @@ int run_interactive(std::uint64_t initial_seed,
             }
             if (IsKeyPressed(KEY_R)) {
                 ++key_events;
-                // Reseed without changing the seed input — visualizes BUG-004
-                // (hash-map iteration order in constraint_solver).
+                // Reseed without changing the seed input — the digest must match the
+                // pre-reseed baseline (deterministic replay, Article 5).
                 reseed_baseline = s.state_digest();
                 s.reseed(s.seed());
                 char payload[160];

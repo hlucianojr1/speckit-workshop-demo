@@ -18,15 +18,17 @@ no exceptions, no RTTI.
    `engine_demo::allocator` (in `include/engine_demo/allocator.h`) is the source of truth.
 5. **`[[nodiscard]]`** on factories and on functions returning a status / result.
 6. **`noexcept`** on move constructors, move assignment, and swap.
-7. **Determinism.** Sim paths use `eastl::mt19937` seeded explicitly; never
-   `std::random_device`. Accumulators are `double`, not `float`.
+7. **Determinism.** Sim paths use explicitly seeded RNG engines (`engine_demo::sim::rng`;
+   `std::mt19937` underneath is an accepted interop boundary — EASTL ships no Mersenne
+   Twister). Never `std::random_device`. Accumulators are `double`, not `float`.
 8. **Real-time.** No allocation in inner loops. Pool / arena up front.
 
 ## Spec-Kit
 
-The constitution at [`specs/constitution.md`](specs/constitution.md) is ground truth. Every
-spec-kit `/implement` task respects it. If a task requires violating an article, *the spec
-is wrong*.
+The constitution at [`specs/constitution.md`](specs/constitution.md) is ground truth
+(machine-readable copy: `.specify/memory/constitution.md`). Every spec-kit
+`/speckit.implement` task respects it. If a task requires violating an article, _the spec
+is wrong_.
 
 ## Tests
 
@@ -45,8 +47,8 @@ cmake --build --preset default-debug
 ctest --preset default-debug --output-on-failure
 ```
 
-CI mirrors these commands on every PR; the `-fno-exceptions -fno-rtti` flags are
-non-negotiable.
+CI mirrors these commands on every PR when a workflow is configured; the
+`-fno-exceptions -fno-rtti` flags are non-negotiable.
 
 ## Off-the-rails recovery
 

@@ -1,11 +1,14 @@
-// Constraint solver — single-pass position-projection over a hash-keyed body table.
+// Constraint solver — single-pass position-projection over a key-sorted body table.
 //
-// SEEDED DEFECT BUG-004: see src/engine_demo/physics/constraint.cpp.
+// FIX BUG-004: bodies live in an eastl::vector_map (deterministic, key-sorted) and
+// constraints are kept sorted by their canonical (min(a,b), max(a,b)) key at insertion,
+// so projection order — and therefore convergence — is identical across runs and across
+// construction orders (Article 5).
 
 #pragma once
 
-#include <EASTL/hash_map.h>
 #include <EASTL/vector.h>
+#include <EASTL/vector_map.h>
 
 #include "engine_demo/allocator.h"
 
@@ -42,11 +45,10 @@ class [[nodiscard]] constraint_solver {
     [[nodiscard]] const body* try_get_body(std::uint64_t id) const noexcept;
 
    private:
-    using body_map = eastl::hash_map<std::uint64_t,
-                                     body,
-                                     eastl::hash<std::uint64_t>,
-                                     eastl::equal_to<std::uint64_t>,
-                                     eastl_allocator_ref>;
+    using body_map = eastl::vector_map<std::uint64_t,
+                                       body,
+                                       eastl::less<std::uint64_t>,
+                                       eastl_allocator_ref>;
     using constraint_vec = eastl::vector<distance_constraint, eastl_allocator_ref>;
 
     eastl_allocator_ref m_alloc;

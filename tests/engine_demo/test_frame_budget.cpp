@@ -24,8 +24,8 @@ TEST(frame_budget, average_over_two_samples) {
     EXPECT_NEAR(fb.rolling_average(), 3.0, 1.0e-9);
 }
 
-// REGRESSION TEST for BUG-006 (currently fails on warm-up — intentional during demo).
-TEST(frame_budget, DISABLED_first_sample_is_not_double_counted_on_warmup) {
+// REGRESSION TEST for BUG-006. Guards single-count warm-up behavior of the rolling window.
+TEST(frame_budget, first_sample_is_not_double_counted_on_warmup) {
     std::array<std::byte, 1024> buffer{};
     engine_demo::allocator alloc{buffer.data(), buffer.size()};
     engine_demo::frame_budget fb{alloc, 16};

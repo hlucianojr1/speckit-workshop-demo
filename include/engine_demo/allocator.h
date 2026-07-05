@@ -5,7 +5,7 @@
 //   - 2 (no RTTI)
 //   - 4 (allocator-aware: this IS the allocator)
 //
-// Seeded defect: BUG-001 (OOB write inside arena bookkeeping). See fixtures/seeded-bugs.md.
+// FIX BUG-001: the arena bounds check accounts for post-alignment padding (see allocator.cpp).
 
 #pragma once
 

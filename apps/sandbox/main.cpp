@@ -3,8 +3,8 @@
 // Two run modes:
 //   1. Interactive (default): opens a raylib window and renders the scene.
 //   2. Headless: --headless --seed S --frames N [--out trace.csv]
-//      Used by CI to assert deterministic traces (canonical branch) or to
-//      demonstrate non-determinism (seeded-bug branch, BUG-004).
+//      Used to assert deterministic traces: the same seed must always produce
+//      the same digest.
 //
 // Constitutional articles:
 //   - 1 (no exceptions): argv parsing returns a status enum, no throw.
@@ -143,13 +143,13 @@ void print_usage() noexcept {
         "  1 / 2 / 3 / 4   switch scene (rope / pendulum / cloth / storm)\n"
         "  Space           pause / resume\n"
         "  S               single-step (when paused)\n"
-        "  R               reseed scene (visualizes BUG-004 non-determinism)\n"
+        "  R               reseed scene (same seed → identical digest)\n"
         "  H               toggle HUD\n"
         "  T               toggle particle trails\n"
         "  + / -           simulation speed up / down\n"
         "  LMB drag        grab + drag a rope/cloth node\n"
         "  RMB             spawn a particle burst at the cursor\n"
-        "  F1              deliberate crash (Session 02 demo)\n"
+        "  F1              deliberate crash (crash-dump demo)\n"
         "  Esc             quit\n"
         "\n"
         "Telemetry (interactive only):\n"
