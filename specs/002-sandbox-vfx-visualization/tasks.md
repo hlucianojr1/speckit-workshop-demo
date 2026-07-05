@@ -37,12 +37,15 @@ Project Structure):
 
 **Purpose**: Confirm a clean baseline before touching the library or the sandbox
 
-- [ ] T001 Confirm the existing build/test baseline is green: `cmake --preset default-debug`,
+- [x] T001 Confirm the existing build/test baseline is green: `cmake --preset default-debug`,
       `cmake --build --preset default-debug`, `ctest --preset default-debug
       --output-on-failure`. Also re-run the headless golden trace at seed 42/600 frames and
       confirm its `trace_digest` matches this session's already-recorded
       `baseline-trace.csv` — this is the number every later digest-parity task compares
       against. Fix or report any pre-existing failure before proceeding.
+      **DONE**: Merged Feature 001 (`001-particle-vfx-subsystem`, which had not yet been
+      merged into this branch) to bring in `engine_demo::vfx`. 11/11 tests green;
+      `trace_digest=9dc3bd72a4f7f31a` at frame 599 matches `baseline-trace.csv` exactly.
 
 ---
 
@@ -56,7 +59,7 @@ work begins.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 [P] Add 3 new cases to `tests/engine_demo/test_emitter.cpp` per
+- [x] T002 [P] Add 3 new cases to `tests/engine_demo/test_emitter.cpp` per
       [contracts/emitter-set-shape.md](contracts/emitter-set-shape.md) test obligations:
       happy path (`set_shape` to a `sphere_shape` moves subsequent spawn positions off the
       old shape), no-reallocation (`allocator::bytes_used()` unchanged across several
@@ -64,14 +67,14 @@ work begins.
       (two identically-seeded emitters, differing `set_shape` call counts between identical
       `try_emit` calls, still produce identical spawned-particle sequences). Expected to
       fail to compile/link until T003 lands.
-- [ ] T003 Add `void set_shape(emitter_shape shape) noexcept;` to
+- [x] T003 Add `void set_shape(emitter_shape shape) noexcept;` to
       `include/engine_demo/vfx/emitter.h` and implement it in
       `src/engine_demo/vfx/emitter.cpp` (overwrites `m_cfg.shape` only; no allocation; does
       not touch `m_rng`/`m_pool`/`m_forces`/`m_scratch`) per
       [contracts/emitter-set-shape.md](contracts/emitter-set-shape.md). Build and confirm
       all T002 cases pass (GREEN), and that every pre-existing `test_emitter` case still
       passes. Depends on T002.
-- [ ] T004 [P] Create `tests/engine_demo/test_scene_vfx.cpp` (new file, raylib-free —
+- [x] T004 [P] Create `tests/engine_demo/test_scene_vfx.cpp` (new file, raylib-free —
       compiles `apps/sandbox/scene.cpp` directly per [research.md](research.md) §6) and wire
       it into `tests/engine_demo/CMakeLists.txt` following the exact `test_sandbox_render`
       pattern (`engine_demo_add_test` + `target_sources` for `apps/sandbox/scene.cpp` +
@@ -80,7 +83,7 @@ work begins.
       `vfx_particle_count() == 0`; the VFX pool's construction fits comfortably within the
       existing 4 MiB arena (`m_alloc`'s `bytes_used() < capacity()` after construction,
       matching the arena headroom table). Expected to fail to compile/link until T005 lands.
-- [ ] T005 Add `m_vfx_pool` (`engine_demo::vfx::particle_pool`) and `m_vfx_emitter`
+- [x] T005 Add `m_vfx_pool` (`engine_demo::vfx::particle_pool`) and `m_vfx_emitter`
       (`engine_demo::vfx::emitter`) members, the VFX constants (`kVfxPoolCapacity`,
       `kVfxBurstCount`, `kVfxSparkCount`, `kVfxSpawnRadius`, `kVfxLifetimeSeconds`,
       `kVfxSeedSalt`), the `vfx_particle_view` struct, and the
@@ -110,7 +113,7 @@ identical seed/frame sequence.
 
 ### Tests for User Story 1 ⚠️
 
-- [ ] T006 [P] [US1] Extend `tests/engine_demo/test_scene_vfx.cpp` with User Story 1 cases
+- [x] T006 [P] [US1] Extend `tests/engine_demo/test_scene_vfx.cpp` with User Story 1 cases
       per [contracts/scene-vfx.md](contracts/scene-vfx.md): `spawn_vfx_burst` increases
       `vfx_particle_count()` by up to `kVfxBurstCount` while `particle_count()` (the
       existing ad-hoc physics burst) is unaffected; VFX particles age and retire across
@@ -120,7 +123,7 @@ identical seed/frame sequence.
       and (extending the Foundational reset check now that a spawn method exists) calling
       `reseed()`/`switch_scene()` after a burst leaves `vfx_particle_count() == 0`. Expected
       to fail to compile/link until T010 lands.
-- [ ] T007 [P] [US1] Extend `tests/engine_demo/test_scene_vfx.cpp` with the FR-009
+- [x] T007 [P] [US1] Extend `tests/engine_demo/test_scene_vfx.cpp` with the FR-009
       pool-exhaustion case per [contracts/scene-vfx.md](contracts/scene-vfx.md): drive
       `m_vfx_pool` to full capacity via repeated `spawn_vfx_burst` calls (enough bursts to
       reach `kVfxPoolCapacity`, rounding up), then call `spawn_vfx_burst`/`spawn_vfx_spark`
@@ -129,7 +132,7 @@ identical seed/frame sequence.
       `vfx_particle_at(i)`) is unchanged by the exhausted call. Closes the zero-coverage gap
       on FR-009 identified in `/speckit.analyze`. Expected to fail to compile/link until
       T010 lands.
-- [ ] T008 [P] [US1] Add a minimal `[[nodiscard]] std::size_t arena_bytes_used() const
+- [x] T008 [P] [US1] Add a minimal `[[nodiscard]] std::size_t arena_bytes_used() const
       noexcept` accessor to `apps/sandbox/scene.h`/`scene.cpp` (one-line forwarding getter
       to `m_alloc.bytes_used()`), then extend `tests/engine_demo/test_scene_vfx.cpp` with an
       Article 6 case: record `arena_bytes_used()` immediately before and after several
@@ -139,7 +142,7 @@ identical seed/frame sequence.
       `/speckit.analyze` (previously only checked at construction-time in T004 and at the
       emitter level in T002). Expected to fail to compile/link until T010 (and the
       accessor) lands.
-- [ ] T009 [P] [US1] Add the digest-parity case (SC-001) to `test_scene_vfx.cpp`: construct
+- [x] T009 [P] [US1] Add the digest-parity case (SC-001) to `test_scene_vfx.cpp`: construct
       two identically-seeded `scene` instances, call `spawn_vfx_burst` periodically on one
       (never on the other), step both through an identical number of frames, and assert
       `state_digest()` is identical between the two at every compared frame. Expected to
@@ -148,25 +151,32 @@ identical seed/frame sequence.
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Add public `spawn_vfx_burst(double wx, double wy) noexcept` to
+- [x] T010 [US1] Add public `spawn_vfx_burst(double wx, double wy) noexcept` to
       `apps/sandbox/scene.h`/`scene.cpp`: calls `m_vfx_emitter.set_shape(sphere_shape{{wx,
       wy, 0}, kVfxSpawnRadius})` then `m_vfx_emitter.try_emit(kVfxBurstCount)`, per
       [contracts/scene-vfx.md](contracts/scene-vfx.md) (pool exhaustion handled gracefully,
       status not surfaced). Add the `m_vfx_emitter.tick(dt)` call once per `substep(double
       dt)`, after all per-step physics/spark work. Depends on T005.
-- [ ] T011 [US1] Build and confirm all T006–T009 tests pass (GREEN), and that T002/T004
+- [x] T011 [US1] Build and confirm all T006–T009 tests pass (GREEN), and that T002/T004
       foundational tests still pass. Depends on T010.
-- [ ] T012 [US1] In `apps/sandbox/app.cpp`: the existing `MOUSE_BUTTON_RIGHT` handler
+- [x] T012 [US1] In `apps/sandbox/app.cpp`: the existing `MOUSE_BUTTON_RIGHT` handler
       additionally calls `s.spawn_vfx_burst(mwx, mwy)` right after the existing
       `s.spawn_particle_burst(mwx, mwy, 12)` call (purely additive — that call is otherwise
       untouched). In `draw_scene()`, add a render pass iterating
       `s.vfx_particle_count()`/`s.vfx_particle_at(i)` that draws each live VFX particle with
       alpha derived from `life_fraction`. No automated test (raylib render path) — verified
       manually per [quickstart.md](quickstart.md) §3. Depends on T010.
-- [ ] T013 [US1] Manual verification per [quickstart.md](quickstart.md) §2 (golden digest
+- [x] T013 [US1] Manual verification per [quickstart.md](quickstart.md) §2 (golden digest
       A/B: headless run at seed 42/600 frames, `trace_digest` must equal T001's baseline)
       and §3 (visual smoke test: right-click produces a fading burst layered over the
       existing physics burst). Depends on T011, T009, T012.
+      **DONE (partial)**: §2 golden digest A/B confirmed (`9dc3bd72a4f7f31a` matches
+      baseline). §3: fixed the VM's software-GL renderer and captured a real screenshot
+      confirming the render pass/HUD/alpha-fade all work correctly (see T018's note — same
+      code path, proven via naturally-occurring sparks since `--screenshot` mode has no
+      mouse input for a live right-click). **A human with a mouse should still do one
+      interactive right-click** to see the burst itself, but the rendering plumbing it
+      depends on is now visually verified, not just unit-tested.
 
 **Checkpoint**: User Story 1 is fully functional and independently testable — this is the
 MVP slice.
@@ -186,7 +196,7 @@ never change `state_digest()`.
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T014 [P] [US2] Extend `tests/engine_demo/test_scene_vfx.cpp` with User Story 2 cases
+- [x] T014 [P] [US2] Extend `tests/engine_demo/test_scene_vfx.cpp` with User Story 2 cases
       per [contracts/scene-vfx.md](contracts/scene-vfx.md): a bounce in a non-storm scene
       (e.g. `rope`) increases `vfx_particle_count()`; an equivalent world-bound crossing in
       `particle_storm` (which wraps) does not. Expected to fail (new cases RED) until T015
@@ -194,19 +204,27 @@ never change `state_digest()`.
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] Add private `spawn_vfx_spark(double wx, double wy) noexcept` to
+- [x] T015 [US2] Add private `spawn_vfx_spark(double wx, double wy) noexcept` to
       `apps/sandbox/scene.cpp` (identical to `spawn_vfx_burst` but with
       `kVfxSparkCount`), and call it from both non-storm bounce sites (x-bound, y-bound) in
       `substep()`'s free-particle handling, at the already-clamped contact position. Never
       called from the `particle_storm` branch (FR-003). Depends on T014, T010.
-- [ ] T016 [US2] Build and confirm all T014 tests pass (GREEN), and that all User Story 1
+- [x] T016 [US2] Build and confirm all T014 tests pass (GREEN), and that all User Story 1
       tests (T006, T007, T008, T009) still pass. Depends on T015.
-- [ ] T017 [P] [US2] Re-run the headless golden trace (seed 42, 600 frames — bounces occur
+- [x] T017 [P] [US2] Re-run the headless golden trace (seed 42, 600 frames — bounces occur
       naturally during normal physics, so this run already exercises spark emission) and
       confirm `trace_digest` still equals T001's baseline. Depends on T015.
-- [ ] T018 [US2] Manual verification per [quickstart.md](quickstart.md) §3: bounces in
+- [x] T018 [US2] Manual verification per [quickstart.md](quickstart.md) §3: bounces in
       `rope`/`pendulum_tower`/`cloth` (keys `1`/`2`/`3`) show a spark at the contact point;
       `particle_storm` (key `4`) shows no sparks on wrap. Depends on T015.
+      **DONE**: fixed the VM's missing software-GL renderer (Mesa llvmpipe DLLs — recipe
+      recorded in repo memory) and captured a real screenshot after 400 warmup frames of
+      the rope scene: HUD reads `vfx=90`, and warm gold/orange spark particles are clearly
+      visible clustered at the bottom world boundary where blue physics particles bounce,
+      confirming the spark render pass, alpha-fade coloring, and HUD count all work
+      correctly. (Right-click burst itself still needs a human with a mouse for direct
+      interactive confirmation — `--screenshot` mode has no mouse input — but the
+      identical underlying render/emit code path is now visually proven via sparks.)
 
 **Checkpoint**: User Stories 1 and 2 both work independently.
 
@@ -223,12 +241,14 @@ expire.
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] In `apps/sandbox/app.cpp`'s `draw_hud()`, extend the existing top-right
+- [x] T019 [US3] In `apps/sandbox/app.cpp`'s `draw_hud()`, extend the existing top-right
       counts panel (`bodies=... edges=... particles=...`) to also print
       `vfx=%zu` from `s.vfx_particle_count()`. No automated test (raylib render/HUD path) —
       verified manually per [quickstart.md](quickstart.md) §3 (HUD count rises on
       burst/spark, falls back toward 0 as particles expire). Depends on T005 (accessor),
       T012 (panel code already touched by US1's renderer wiring).
+      **DONE**: implemented together with T012 (same `draw_hud()` edit); confirmed via
+      `--screenshot` showing `vfx=0` render correctly with zero live particles.
 
 **Checkpoint**: All three user stories are independently functional and tested.
 
@@ -238,11 +258,14 @@ expire.
 
 **Purpose**: Validate the feature's remaining Success Criteria and confirm no regressions.
 
-- [ ] T020 [P] Manual SC-003 frame-budget check per [quickstart.md](quickstart.md) §4: with
+- [x] T020 [P] Manual SC-003 frame-budget check per [quickstart.md](quickstart.md) §4: with
       the VFX pool near full capacity (sustained right-click bursts) and a physics
       perf-bomb (`P` key) active, confirm the HUD's `frame_avg=...ms` reading stays close to
       the pre-feature baseline and the sandbox holds its fixed 60 FPS step.
-- [ ] T021 [P] Add an automated SC-003/FR-010 perf smoke test to
+      **DONE (automated substitute only)**: no working GPU/display in this session (see
+      T018 note); T021's automated perf test covers the same underlying budget concern
+      programmatically. **Needs a human with a real display** for the literal manual check.
+- [x] T021 [P] Add an automated SC-003/FR-010 perf smoke test to
       `tests/engine_demo/test_scene_vfx.cpp`, mirroring Feature 001's `test_emitter.cpp`
       perf-smoke precedent: populate `m_vfx_pool` to `kVfxPoolCapacity`, call `step()`
       repeatedly, and assert wall-clock time per `step()` stays comfortably under the fixed
@@ -250,14 +273,44 @@ expire.
       existing perf-test conventions). Complements T020's manual check with a repeatable
       regression guard that needs no graphical window. Closes the automation gap identified
       in `/speckit.analyze`.
-- [ ] T022 [P] Final full-gate golden-trace re-check: headless run at seed 42/600 frames,
+- [x] T022 [P] Final full-gate golden-trace re-check: headless run at seed 42/600 frames,
       confirm `trace_digest` still equals T001's baseline (last-mile regression guard after
       all tasks land, independent of T017's mid-feature check).
-- [ ] T023 Run the full local gate end-to-end: `cmake --preset default-debug`,
+      **DONE**: `trace_digest=9dc3bd72a4f7f31a` matches baseline exactly.
+- [x] T023 Run the full local gate end-to-end: `cmake --preset default-debug`,
       `cmake --build --preset default-debug`, `ctest --preset default-debug
       --output-on-failure`. Confirm every `vfx`/`scene_vfx`-related test is green, then walk
       through [quickstart.md](quickstart.md) end-to-end and correct any drift found against
       the final API. Depends on all prior tasks.
+      **DONE**: 12/12 ctest targets green, 65 real GTest cases total (verified via `-V`,
+      not just exit codes — see below). quickstart.md matches the final API; no drift found.
+
+      **Critical bug found + fixed during this phase (out of scope for this feature, but
+      blocking):** `tests/engine_demo/CMakeLists.txt`'s `engine_demo_add_test()` linked
+      `GTest::gmock` on every test target even though no test file uses gmock. Linking
+      gmock alongside gtest_main (vcpkg x64-windows dynamic build) silently broke GTest's
+      test registry: every binary printed "This test program does NOT link in any test
+      case", ran 0 tests, and exited 0 — so `ctest` reported "100% tests passed" as a
+      **false positive for every test in the repository**, including this feature's own
+      T001 baseline check. Diagnosed via a minimal standalone GTest+CMake repro; fixed by
+      removing `GTest::gmock` from the shared function. Also exposed two pre-existing,
+      previously-undetected Feature 001 bugs in `test_emitter.cpp`, fixed alongside:
+      (1) `add_force_succeeds_until_capacity...` compared velocity assuming the particle
+      spawned at rest, but never zeroed `speed_min`/`speed_max`; (2) the 500-particle perf
+      test's 1 MiB buffer was stack-allocated (`std::array`), causing a real
+      `STATUS_STACK_OVERFLOW` in debug builds — fixed via `static` storage. See
+      `/memories/repo/build-windows.md` for full details. Also found (and fixed) two bugs
+      in my own new `test_scene_vfx.cpp` cases (wrong assumption that a fresh rope scene
+      has zero physics particles; a spark-vs-burst-aging test race once sparks were wired
+      in) — both were test-only mistakes, not implementation bugs.
+
+      **Not fully verified (environment limitation, not a code issue):** this VM has no
+      working GPU/display in this session (GLFW error 65542; the Mesa llvmpipe
+      software-renderer DLLs required as a workaround were wiped by an earlier clean
+      rebuild). T013/T018/T020's literal visual/manual verification steps could only be
+      partially substituted with automated equivalents — **a human with a real display and
+      mouse should still confirm the burst/spark rendering and frame budget visually**
+      before considering this feature fully signed off.
 
 ---
 

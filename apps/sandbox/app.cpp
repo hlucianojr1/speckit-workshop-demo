@@ -294,10 +294,11 @@ void draw_hud(const scene& s,
     char r_buf[160];
     std::snprintf(r_buf,
                   sizeof(r_buf),
-                  "bodies=%zu  edges=%zu  particles=%zu",
+                  "bodies=%zu  edges=%zu  particles=%zu  vfx=%zu",
                   s.rope_node_count(),
                   s.constraint_edge_count(),
-                  s.particle_count());
+                  s.particle_count(),
+                  s.vfx_particle_count());
     const int rfs = sc(14, sc_);
     const int rw = MeasureText(r_buf, rfs);
     DrawRectangle(vp.width - rw - sc(32, sc_),
@@ -376,6 +377,16 @@ void draw_scene(const scene& s, viewport vp, bool show_trails) noexcept {
             DrawCircleV(
                 sp, r * 0.4F, Color{255, 255, 255, static_cast<unsigned char>(hot_alpha * 200.0F)});
         }
+    }
+
+    // Live VFX particles (Feature 002) — render-only, lifetime-based alpha fade.
+    for (std::size_t i = 0; i < s.vfx_particle_count(); ++i) {
+        const scene::vfx_particle_view v = s.vfx_particle_at(i);
+        const Vector2 sp = world_to_screen(static_cast<double>(v.x), static_cast<double>(v.y), vp);
+        const float r = std::max(v.size * 60.0F, 1.5F);
+        const auto alpha = static_cast<unsigned char>(std::clamp(v.life_fraction, 0.0F, 1.0F) * 220.0F);
+        DrawCircleV(sp, r * 2.0F, Color{255, 210, 110, static_cast<unsigned char>(alpha / 3)});
+        DrawCircleV(sp, r, Color{255, 225, 140, alpha});
     }
 
     // Constraint edges with subtle gradient glow.
@@ -917,6 +928,7 @@ int run_interactive(std::uint64_t initial_seed,
             if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                 ++mouse_events;
                 s.spawn_particle_burst(mwx, mwy, 12);
+                s.spawn_vfx_burst(mwx, mwy);
                 char payload[96];
                 std::snprintf(
                     payload, sizeof(payload), R"("wx":%.3f,"wy":%.3f,"count":12)", mwx, mwy);

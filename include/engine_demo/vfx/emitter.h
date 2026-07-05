@@ -68,6 +68,12 @@ class [[nodiscard]] emitter {
     // Returns invalid_argument (and leaves the existing list unchanged) once full.
     [[nodiscard]] vfx_status add_force(force_applicator force) noexcept;
 
+    // Replaces this emitter's shape configuration in place. Does not touch m_rng, m_pool,
+    // m_forces, or m_scratch, and performs no allocation (emitter_shape is a variant of
+    // small non-owning structs — assignment is a trivial copy). Safe to call between any
+    // two try_emit()/tick() calls, including every frame.
+    void set_shape(emitter_shape shape) noexcept;
+
     // Samples `count` particles from this emitter's shape/variance configuration and
     // forwards them to the referenced particle_pool in one batch.
     [[nodiscard]] emit_result try_emit(std::uint32_t count) noexcept;

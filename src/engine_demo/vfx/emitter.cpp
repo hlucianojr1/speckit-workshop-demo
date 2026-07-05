@@ -69,6 +69,10 @@ vfx_status emitter::add_force(force_applicator force) noexcept {
     return vfx_status::ok;
 }
 
+void emitter::set_shape(emitter_shape shape) noexcept {
+    m_cfg.shape = shape;
+}
+
 spawn_params emitter::sample_one() noexcept {
     spawn_params p{};
     float direction[3] = {0.0f, 1.0f, 0.0f};

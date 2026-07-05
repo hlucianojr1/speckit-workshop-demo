@@ -4,7 +4,6 @@ function(engine_demo_add_test test_name)
         engine_demo
         GTest::gtest
         GTest::gtest_main
-        GTest::gmock
     )
     engine_demo_set_target_options(${test_name})
     add_test(NAME ${test_name} COMMAND ${test_name})
@@ -25,5 +24,12 @@ engine_demo_add_test(test_vfx_determinism   test_vfx_determinism.cpp)
 # viewport.h is pure math (no raylib dependency) — include via project root.
 engine_demo_add_test(test_sandbox_render test_sandbox_render.cpp)
 target_include_directories(test_sandbox_render PRIVATE
+    ${CMAKE_SOURCE_DIR}
+)
+
+# Sandbox scene VFX tests (Feature 002). scene.cpp is raylib-free by design, so it's
+# compiled directly into this test target — the same pattern as test_sandbox_render above.
+engine_demo_add_test(test_scene_vfx test_scene_vfx.cpp ${CMAKE_SOURCE_DIR}/apps/sandbox/scene.cpp)
+target_include_directories(test_scene_vfx PRIVATE
     ${CMAKE_SOURCE_DIR}
 )

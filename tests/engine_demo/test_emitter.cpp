@@ -140,6 +140,8 @@ TEST(emitter, add_force_succeeds_until_capacity_then_reports_invalid_argument) {
     emitter_config cfg{};
     cfg.shape = point_shape{};
     cfg.seed = 11;
+    cfg.speed_min = 0.0f;
+    cfg.speed_max = 0.0f;  // starts at rest so the accumulated velocity check below is exact
     cfg.lifetime_min_seconds = 1000.0;
     cfg.lifetime_max_seconds = 1000.0;
     emitter e{alloc, pool, cfg};
@@ -250,7 +252,10 @@ TEST(emitter, gravity_and_wind_forces_accumulate_velocity_over_multiple_ticks) {
 // ---------------------------------------------------------------------------------------
 
 TEST(emitter, tick_with_500_particles_completes_well_under_frame_budget) {
-    std::array<std::byte, 1 << 20> buffer{};
+    // FIX: was a stack-local std::array<std::byte, 1 << 20> (1 MiB), which overflowed the
+    // default ~1 MiB thread stack in debug builds (STATUS_STACK_OVERFLOW). static gives it
+    // static storage duration instead.
+    static std::array<std::byte, 1 << 20> buffer{};
     allocator alloc{buffer.data(), buffer.size()};
     particle_pool pool{alloc, 500};
 
@@ -274,6 +279,109 @@ TEST(emitter, tick_with_500_particles_completes_well_under_frame_budget) {
     // SC-001 targets < 2 ms; assert a generous, explicit, CI-safe ceiling well above that
     // so the test still catches real regressions without being flaky on loaded hardware.
     EXPECT_LT(elapsed_ms, 20.0);
+}
+
+// ---------------------------------------------------------------------------------------
+// Feature 002 (Sandbox VFX Visualization) — emitter::set_shape
+// See specs/002-sandbox-vfx-visualization/contracts/emitter-set-shape.md.
+// ---------------------------------------------------------------------------------------
+
+TEST(emitter, set_shape_moves_subsequent_spawns_to_the_new_shape) {
+    std::array<std::byte, 1 << 16> buffer{};
+    allocator alloc{buffer.data(), buffer.size()};
+    particle_pool pool{alloc, 8};
+
+    emitter_config cfg{};
+    cfg.shape = point_shape{{100.0f, 100.0f, 100.0f}};  // far from the sphere below
+    cfg.seed = 909;
+    cfg.lifetime_min_seconds = 5.0;
+    cfg.lifetime_max_seconds = 5.0;
+    emitter e{alloc, pool, cfg};
+    ASSERT_EQ(e.try_emit(1).status, vfx_status::ok);
+    ASSERT_FLOAT_EQ(pool.live_particles()[0].position[0], 100.0f);
+
+    const float center[3] = {0.0f, 0.0f, 0.0f};
+    const float radius = 1.0f;
+    e.set_shape(sphere_shape{{center[0], center[1], center[2]}, radius});
+    ASSERT_EQ(e.try_emit(1).status, vfx_status::ok);
+
+    // The newly spawned (2nd) particle must fall within the new sphere, not near the old
+    // point_shape position.
+    const auto& p = pool.live_particles()[1];
+    const double dx = p.position[0] - center[0];
+    const double dy = p.position[1] - center[1];
+    const double dz = p.position[2] - center[2];
+    const double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+    EXPECT_LE(distance, static_cast<double>(radius) + 1.0e-4);
+}
+
+TEST(emitter, set_shape_does_not_allocate) {
+    std::array<std::byte, 1 << 16> buffer{};
+    allocator alloc{buffer.data(), buffer.size()};
+    particle_pool pool{alloc, 8};
+
+    emitter_config cfg{};
+    cfg.shape = point_shape{};
+    cfg.seed = 314;
+    cfg.lifetime_min_seconds = 5.0;
+    cfg.lifetime_max_seconds = 5.0;
+    emitter e{alloc, pool, cfg};
+    ASSERT_EQ(e.try_emit(1).status, vfx_status::ok);
+    e.tick(1.0 / 60.0);
+
+    const std::size_t before = alloc.bytes_used();
+    e.set_shape(sphere_shape{{1.0f, 2.0f, 3.0f}, 4.0f});
+    e.set_shape(point_shape{{5.0f, 6.0f, 7.0f}});
+    e.set_shape(cone_shape{{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 0.5f});
+    const std::size_t after = alloc.bytes_used();
+
+    EXPECT_EQ(before, after);
+}
+
+TEST(emitter, set_shape_does_not_perturb_rng_sequence) {
+    std::array<std::byte, 1 << 16> buffer_a{};
+    allocator alloc_a{buffer_a.data(), buffer_a.size()};
+    particle_pool pool_a{alloc_a, 8};
+
+    std::array<std::byte, 1 << 16> buffer_b{};
+    allocator alloc_b{buffer_b.data(), buffer_b.size()};
+    particle_pool pool_b{alloc_b, 8};
+
+    emitter_config cfg{};
+    cfg.shape = sphere_shape{{0.0f, 0.0f, 0.0f}, 2.0f};
+    cfg.seed = 555;
+    cfg.speed_min = 1.0f;
+    cfg.speed_max = 3.0f;
+    cfg.lifetime_min_seconds = 1.0;
+    cfg.lifetime_max_seconds = 4.0;
+    cfg.size_min = 0.5f;
+    cfg.size_max = 1.5f;
+
+    emitter e_a{alloc_a, pool_a, cfg};
+    emitter e_b{alloc_b, pool_b, cfg};
+
+    // e_b calls set_shape (to an equivalent shape) an arbitrary number of times between
+    // identical try_emit calls; e_a never calls set_shape at all.
+    ASSERT_EQ(e_a.try_emit(4).status, vfx_status::ok);
+
+    e_b.set_shape(sphere_shape{{0.0f, 0.0f, 0.0f}, 2.0f});
+    e_b.set_shape(sphere_shape{{0.0f, 0.0f, 0.0f}, 2.0f});
+    e_b.set_shape(sphere_shape{{0.0f, 0.0f, 0.0f}, 2.0f});
+    ASSERT_EQ(e_b.try_emit(4).status, vfx_status::ok);
+
+    ASSERT_EQ(pool_a.live_count(), pool_b.live_count());
+    for (std::size_t i = 0; i < pool_a.live_count(); ++i) {
+        const auto& pa = pool_a.live_particles()[i];
+        const auto& pb = pool_b.live_particles()[i];
+        EXPECT_EQ(pa.position[0], pb.position[0]);
+        EXPECT_EQ(pa.position[1], pb.position[1]);
+        EXPECT_EQ(pa.position[2], pb.position[2]);
+        EXPECT_EQ(pa.velocity[0], pb.velocity[0]);
+        EXPECT_EQ(pa.velocity[1], pb.velocity[1]);
+        EXPECT_EQ(pa.velocity[2], pb.velocity[2]);
+        EXPECT_EQ(pa.remaining_lifetime_seconds, pb.remaining_lifetime_seconds);
+        EXPECT_EQ(pa.size, pb.size);
+    }
 }
 
 }  // namespace
