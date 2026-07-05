@@ -118,6 +118,7 @@ _Each arrow is a Human-In-The-Loop (HITL) gate — the demo pauses for approval 
 | Requirement                                            | Status                |
 | ------------------------------------------------------ | --------------------- |
 | `speckit-workshop-demo` repository cloned and building | `ctest` green ✅      |
+| Spec-Kit CLI installed locally ([install guide](local-build-guide.md#6-install-spec-kit-specify-cli-locally)) | `specify check` ✅    |
 | VS Code with Copilot Chat (Agent Mode enabled)         | Connected ✅          |
 | `specs/constitution.md` open in editor                 | 8 articles visible ✅ |
 | `AGENTS.md` open in editor                             | Hard rules visible ✅ |
