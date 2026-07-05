@@ -33,6 +33,10 @@ third_party/           # vendored or submoduled deps (EASTL pinned)
 
 ## Build (verify before the demo)
 
+> **Windows users:** follow the step-by-step
+> [docs/local-build-guide.md](docs/local-build-guide.md) — it covers the VS-bundled
+> toolchain, `VCPKG_ROOT`, and the software-OpenGL fix for VMs without a GPU.
+
 Prerequisites: CMake 3.28+, Ninja, vcpkg (manifest mode), a recent C++20 compiler
 (MSVC 19.38+ / GCC 13+ / Clang 17+).
 

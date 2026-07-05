@@ -24,3 +24,10 @@ CMakeUserPresets.json
 
 # Logs.
 *.log
+#copilot local indexes, parsed segments and auxiliary files SQLite database files.
+*.db-shm
+*.db-wal
+**/CopilotLocalIndex/
+
+#VS Code
+.vs/
