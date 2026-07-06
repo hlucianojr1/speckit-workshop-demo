@@ -70,6 +70,16 @@
   - [S.8 Final Verification](#s8-final-verification)
   - [S.9 Stretch Goals and Reflection](#s9-stretch-goals-and-reflection)
 - [Workshop Finale: Two Features, One Branch](#workshop-finale-two-features-one-branch)
+- [Self-Study Lab: Visualize the VFX Subsystem in the Sandbox](#self-study-lab-visualize-the-vfx-subsystem-in-the-sandbox)
+  - [S.1 Mission and Context](#s1-mission-and-context)
+  - [S.2 Prerequisites](#s2-prerequisites)
+  - [S.3 Step 1: /speckit.specify — Feature 002](#s3-step-1-speckitspecify--feature-002)
+  - [S.4 Step 2: /speckit.clarify (Optional)](#s4-step-2-speckitclarify-optional)
+  - [S.5 Step 3: /speckit.plan — Review Checklist](#s5-step-3-speckitplan--review-checklist)
+  - [S.6 Step 4: /speckit.tasks — Sizing Gate](#s6-step-4-speckittasks--sizing-gate)
+  - [S.7 Step 5: /speckit.implement — One Task at a Time](#s7-step-5-speckitimplement--one-task-at-a-time)
+  - [S.8 Final Verification](#s8-final-verification)
+  - [S.9 Stretch Goals and Reflection](#s9-stretch-goals-and-reflection)
 
 ---
 
