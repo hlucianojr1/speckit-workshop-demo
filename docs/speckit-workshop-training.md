@@ -25,6 +25,7 @@
   - [1.1a The Why and the Tradeoffs](#11a-the-why-and-the-tradeoffs)
   - [1.1b Context Windows and Hallucination Mitigation](#11b-context-windows-and-hallucination-mitigation)
   - [1.2 The Five-Stage Spec-Kit Flow](#12-the-five-stage-spec-kit-flow)
+  - [1.2a Optional Quality Commands: Clarify, Analyze, Checklist](#12a-optional-quality-commands-clarify-analyze-checklist)
   - [1.3 Core Principles](#13-core-principles)
   - [1.3a Top 10 Best Practices for Spec-Driven Copilot Workflows](#13a-top-10-best-practices-for-spec-driven-copilot-workflows)
   - [1.4 GitHub Copilot Ecosystem Integration](#14-github-copilot-ecosystem-integration)
@@ -116,6 +117,8 @@ _Each arrow is a Human-In-The-Loop (HITL) gate — the demo pauses for approval 
 > Wherever this document says `/constitution`, `/specify`, `/plan`, `/tasks`, or `/implement`
 > as a stage name, the actual command you type in Copilot Chat is `/speckit.constitution`,
 > `/speckit.specify`, `/speckit.plan`, `/speckit.tasks`, or `/speckit.implement`.
+> The same prefix applies to the **optional quality commands** covered in §1.2a:
+> `/speckit.clarify`, `/speckit.analyze`, and `/speckit.checklist`.
 > (The GitHub Copilot **CLI**'s `/plan` command in §1.6 and Appendix B is a different,
 > CLI-native feature and keeps its short name.)
 
@@ -276,6 +279,11 @@ The output includes:
 
 ✅ **Approve** → proceed to `/speckit.plan`
 
+> **Optional refinement:** in a real run, this is where you'd insert `/speckit.clarify` — a
+> structured Q&A pass that hunts for underspecified areas and records the answers in a
+> Clarifications section of `spec.md`. The demo skips it because the prompt above was
+> deliberately precise; the Self-Study Lab (§S.4) runs it for real. See §1.2a.
+
 ---
 
 ### 0.5 Demo Step 3: Produce the Architecture Plan
@@ -355,6 +363,11 @@ Decompose specs/particle-vfx/plan.md into implementable tasks. Each task must:
 **🚨 HITL GATE:** Task sizing review. Dependencies ordered correctly? Test-first maintained?
 
 ✅ **Approve** → proceed to `/speckit.implement`
+
+> **Optional gate:** between `/speckit.tasks` and `/speckit.implement` you can run
+> `/speckit.analyze` — a read-only consistency check across `spec.md`, `plan.md`, and
+> `tasks.md` that flags coverage gaps and contradictions before any code exists. It's the
+> last cheap place to catch a drifted artifact. See §1.2a.
 
 ---
 
@@ -638,6 +651,56 @@ The methodology provides the stages. Professional judgment decides which stages 
 | `/speckit.plan`         | Specification + constitution     | Architecture decisions, data structures, test strategy      | **HITL: Human approves before decomposition**               |
 | `/speckit.tasks`        | Plan + constitution              | Ordered list of implementable work items (< 150 lines each) | **HITL: Human approves sizing**                             |
 | `/speckit.implement`    | One task at a time               | Code diff + test                                            | **HITL: Human reads diff, runs ctest, approves or rejects** |
+
+### 1.2a Optional Quality Commands: Clarify, Analyze, Checklist
+
+The five core stages are the spine of Spec-Kit, but the toolkit ships three **optional
+quality commands** that slot between them. They are not extra bureaucracy — each one is a
+cheap gate positioned exactly where the Compounding-Error Principle (§1.3) says errors are
+cheapest to fix:
+
+```text
+┌─────────────┐   ┌──────────┐   ┌────────┐   ┌────────┐   ┌─────────────┐
+│/constitution│──▶│ /specify │──▶│ /plan  │──▶│ /tasks │──▶│ /implement  │
+└─────────────┘   └──────────┘   └────────┘   └────────┘   └─────────────┘
+                         │    ▲              │    ▲
+                         ▼    │              ▼    │
+                    ┌──────────┐        ┌──────────┐
+                    │ /clarify │        │ /analyze │
+                    └──────────┘        └──────────┘
+
+                    /checklist — run at any point after /specify
+```
+
+| Command              | When to Run                             | What It Produces                              |
+| -------------------- | --------------------------------------- | --------------------------------------------- |
+| `/speckit.clarify`   | After `/specify`, **before** `/plan`    | Clarifications section written into `spec.md` |
+| `/speckit.analyze`   | After `/tasks`, **before** `/implement` | Cross-artifact consistency & coverage report  |
+| `/speckit.checklist` | Any point after `/specify`              | Quality checklist ("unit tests for English")  |
+
+**Why each one matters:**
+
+- **`/speckit.clarify`** asks up to 5 targeted questions probing underspecified areas and records the answers in a **Clarifications** section of `spec.md` (formerly `/quizme`). A vague word in the spec becomes 3 wrong tasks downstream (§1.3) — clarify catches it at the cheapest stage.
+- **`/speckit.analyze`** is non-destructive: it reads `spec.md`, `plan.md`, and `tasks.md`, then flags requirements with no covering task, tasks with no spec basis, and constitution conflicts. It is the last cheap gate before any code exists.
+- **`/speckit.checklist`** generates a custom checklist validating requirements **completeness, clarity, and consistency** — "unit tests for English." It turns spec review from a vibe check into a falsifiable pass/fail list (compare the hand-written gates in §S.5).
+
+**How they interact with the HITL gates:** the optional commands don't replace human
+approval — they arm it. `/speckit.clarify` makes the §0.4 spec-review gate sharper by
+eliminating ambiguity before you sign off; `/speckit.analyze` gives the §0.6 sizing gate a
+machine-checked consistency report to read alongside the task list; `/speckit.checklist`
+turns any gate's "does this look right?" into a checklist you can tick.
+
+**When to skip them:** the official guidance is to run `/speckit.clarify` before every
+`/speckit.plan` unless you explicitly state you're skipping it (e.g., a spike or throwaway
+prototype) — otherwise the agent may block on missing clarifications. For a workshop demo
+with a deliberately precise prompt (§0.4), skipping is fine; for real feature work, the
+clarify pass routinely pays for itself in avoided rework.
+
+> **Also in the box:** Spec-Kit ships two more workflow commands you may see in command
+> listings — `/speckit.taskstoissues` (convert `tasks.md` into GitHub issues for tracking)
+> and `/speckit.converge` (assess the codebase against spec/plan/tasks and append the
+> remaining work as new tasks). They extend the workflow rather than gate it, so this
+> workshop doesn't use them.
 
 ### 1.3 Core Principles
 
@@ -1896,6 +1959,16 @@ Write a "golden file" test that captures the C++ output at a known seed and fram
 | Work Items   | `/speckit.tasks`        | Plan + constitution    | Task list (< 150 lines each) | **HITL: Approve sizing**       |
 | Code         | `/speckit.implement`    | One task               | Diff + tests                 | **HITL: Review diff + ctest**  |
 
+### Optional Commands (§1.2a)
+
+| Command              | When                                | Output                                              | Gate                                       |
+| -------------------- | ----------------------------------- | --------------------------------------------------- | ------------------------------------------ |
+| `/speckit.clarify`   | After `/specify`, before `/plan`    | Clarifications section appended to `spec.md`        | Human answers up to 5 targeted questions   |
+| `/speckit.analyze`   | After `/tasks`, before `/implement` | Cross-artifact consistency & coverage report        | Human resolves flagged gaps before coding  |
+| `/speckit.checklist` | Any time after `/specify`           | Custom quality checklist ("unit tests for English") | Human ticks every item or rejects upstream |
+
+Also available: `/speckit.taskstoissues` (tasks → GitHub issues) and `/speckit.converge` (audit codebase vs. artifacts, append remaining work as tasks).
+
 ### Recovery Patterns
 
 | Situation                    | Action                                                  |
@@ -1913,6 +1986,7 @@ Write a "golden file" test that captures the C++ output at a known seed and fram
 | Don't                               | Do Instead                                  |
 | ----------------------------------- | ------------------------------------------- |
 | Skip `/speckit.constitution`        | Always establish ground truth first         |
+| Plan on a vague spec                | Run `/speckit.clarify` before planning      |
 | Approve without reading diff        | Read every line; run every test             |
 | Let scope grow mid-session          | New features → new `/speckit.specify` cycle |
 | Fix the code when the spec is wrong | Fix the spec, regenerate the code           |
@@ -2196,7 +2270,7 @@ Acceptance Criteria:
 
 ### S.4 Step 2: /speckit.clarify (Optional)
 
-If your Spec-Kit install provides `/speckit.clarify`, run it now. Good clarifying questions it might ask (and the answers this lab intends):
+If your Spec-Kit install provides `/speckit.clarify`, run it now (see §1.2a for where it and the other optional quality commands fit in the flow). Good clarifying questions it might ask (and the answers this lab intends):
 
 | Likely question                                        | Intended answer                                             |
 | ------------------------------------------------------ | ----------------------------------------------------------- |
