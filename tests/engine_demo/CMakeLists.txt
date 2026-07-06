@@ -21,6 +21,10 @@ engine_demo_add_test(test_game_loop      test_game_loop.cpp)
 engine_demo_add_test(test_rng            test_rng.cpp)
 engine_demo_add_test(test_world          test_world.cpp)
 engine_demo_add_test(test_constraint     test_constraint.cpp)
+engine_demo_add_test(test_particle_pool  test_particle_pool.cpp)
+engine_demo_add_test(test_force_applicator test_force_applicator.cpp)
+engine_demo_add_test(test_emitter         test_emitter.cpp)
+engine_demo_add_test(test_vfx_determinism test_vfx_determinism.cpp)
 
 # Sandbox renderer coordinate-transform tests.
 # viewport.h is pure math (no raylib dependency) — include via project root.
