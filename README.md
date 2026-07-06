@@ -33,9 +33,12 @@ third_party/           # vendored or submoduled deps (EASTL pinned)
 
 ## Build (verify before the demo)
 
-> **Windows users:** follow the step-by-step
-> [docs/local-build-guide.md](docs/local-build-guide.md) — it covers the VS-bundled
-> toolchain, `VCPKG_ROOT`, and the software-OpenGL fix for VMs without a GPU.
+Use the unified local guide for Windows + macOS setup:
+
+- [docs/local-build-guide.md](docs/local-build-guide.md)
+
+The guide calls out platform-specific steps, including the Windows VS-bundled
+toolchain path and VM software-OpenGL workaround.
 
 Prerequisites: CMake 3.28+, Ninja, vcpkg (manifest mode), a recent C++20 compiler
 (MSVC 19.38+ / GCC 13+ / Clang 17+).
@@ -45,6 +48,8 @@ cmake --preset default-debug
 cmake --build --preset default-debug
 ctest --preset default-debug --output-on-failure
 ```
+
+On Apple Silicon, use `cmake --preset macos-arm64` for configure.
 
 The build is `-fno-exceptions -fno-rtti` everywhere. EASTL is the only allowed container
 library in committed code.
