@@ -1,8 +1,8 @@
-# Local Build Guide — Windows (Self-Guided)
+# Local Build Guide — Windows + macOS (Self-Guided)
 
-Get `engine_demo` compiling, tested, and the `ea-sandbox` game running on a Windows
-machine or VM. Every step below was verified on a Windows VM with Visual Studio 2022
-Enterprise 17.14 and no dedicated GPU.
+Get `engine_demo` compiling, tested, and the `ea-sandbox` game running locally.
+This single guide includes both Windows and macOS paths so one document stays
+up to date for the workshop.
 
 Time required: ~10 minutes (first vcpkg dependency build can add 10–20 minutes).
 
@@ -10,219 +10,247 @@ Time required: ~10 minutes (first vcpkg dependency build can add 10–20 minutes
 
 ## 1. Prerequisites
 
-| Requirement | Notes |
-|---|---|
-| **Visual Studio 2022** (17.8+) | With the **"Desktop development with C++"** workload. This bundles MSVC, CMake, Ninja, **and vcpkg** — no separate installs needed. |
-| **Git** | Any recent version. |
-| ~6 GB free disk | vcpkg builds EASTL, GoogleTest, fmt, nlohmann-json, and raylib from source on first configure. |
-| *(Optional)* **uv** + **Python 3.11+** | Only needed for the Spec-Kit (Specify) CLI in step 6. The `/speckit.*` slash commands in this repo work without it. |
+| Requirement | Windows | macOS |
+|---|---|---|
+| Core build tools | Visual Studio 2022 (17.8+) with **Desktop development with C++** workload (includes MSVC, CMake, Ninja, vcpkg) | Xcode Command Line Tools (`xcode-select --install`) + Homebrew |
+| CMake + Ninja | Included with VS workload | `brew install cmake ninja` |
+| Git | Any recent version | Any recent version |
+| vcpkg | VS-bundled (`<VS>\VC\vcpkg`) or standalone clone | Standalone full clone at `$HOME/vcpkg` |
+| Disk | ~6 GB free for first dependency build | ~6 GB free for first dependency build |
+| Optional tooling | uv + Python 3.11+ for local Specify CLI | uv + Python 3.11+ for local Specify CLI |
 
-> **Don't have the C++ workload?** Open *Visual Studio Installer* → *Modify* → check
-> **Desktop development with C++** → ensure "C++ CMake tools for Windows" and
-> "vcpkg package manager" are selected under Installation details → *Modify*.
-
-Verify from a regular PowerShell:
+Windows: verify your VS install path from PowerShell:
 
 ```powershell
 & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
 ```
 
-This prints your VS install path (e.g. `C:\Program Files\Microsoft Visual Studio\2022\Enterprise`).
-You'll need it below — referred to as `<VS>` from here on.
+macOS: create and bootstrap vcpkg if needed:
+
+```bash
+git clone https://github.com/microsoft/vcpkg "$HOME/vcpkg"
+"$HOME/vcpkg/bootstrap-vcpkg.sh"
+```
+
+> vcpkg must be a full clone (not `--depth 1`) so the manifest `builtin-baseline`
+> commit resolves.
 
 ---
 
-## 2. Open a Developer PowerShell
+## 2. Open the right shell
 
-The build tools (cl, cmake, ninja) are **not** on the default PATH. You must work
-inside a *Developer PowerShell for VS 2022*. Either:
-
-- **Start menu** → "Developer PowerShell for VS 2022", **or**
-- From any PowerShell (replace `<VS>` with your install path):
+Windows: open **Developer PowerShell for VS 2022**, or run:
 
 ```powershell
 & "<VS>\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -SkipAutomaticLocation
 ```
 
-> **Important:** `-Arch amd64` matters. The default dev shell targets x86 and the
-> build will fail linking 64-bit libraries.
+> `-Arch amd64` is required. The default shell target can be x86.
 
-Confirm the tools resolve:
+macOS: use a normal terminal (zsh) in the repository root.
+
+Verify tools:
+
+```text
+cmake --version
+ninja --version
+```
+
+Windows-only check:
 
 ```powershell
-cmake --version   # expect 3.28+
-ninja --version
-cl                # prints "Microsoft (R) C/C++ Optimizing Compiler ... for x64"
+cl
 ```
 
 ---
 
-## 3. Point `VCPKG_ROOT` at vcpkg
+## 3. Set `VCPKG_ROOT`
 
-The CMake preset reads the `VCPKG_ROOT` environment variable. Use the copy bundled
-with Visual Studio (no clone required):
+Windows (VS-bundled vcpkg):
 
 ```powershell
 $env:VCPKG_ROOT = "<VS>\VC\vcpkg"
 ```
 
-To make it permanent (survives new terminals):
+Optional permanent Windows user env var:
 
 ```powershell
 [Environment]::SetEnvironmentVariable("VCPKG_ROOT", "<VS>\VC\vcpkg", "User")
 ```
 
-> **Alternative:** if you prefer a standalone vcpkg, `git clone https://github.com/microsoft/vcpkg C:\vcpkg`
-> (a **full** clone — not `--depth 1` — so the manifest's `builtin-baseline` resolves)
-> and point `VCPKG_ROOT` there instead.
+macOS:
+
+```bash
+export VCPKG_ROOT="$HOME/vcpkg"
+```
+
+Optional persistent zsh setting:
+
+```bash
+echo 'export VCPKG_ROOT="$HOME/vcpkg"' >> "$HOME/.zshrc"
+```
+
+Optional macOS step if you build in VS Code with CMake Tools:
+
+- Add the CMake environment setting so the extension resolves vcpkg:
+
+```json
+{ "cmake.environment": { "VCPKG_ROOT": "$HOME/vcpkg" } }
+```
+
+- In this workshop repo, that setting is in `settings.json`.
 
 ---
 
 ## 4. Configure, build, test
 
-From the repository root (`C:\code\speckit-workshop-demo`):
+Run from the repository root.
+
+Windows:
 
 ```powershell
-cmake --preset default-debug                       # configure (vcpkg installs deps here)
-cmake --build --preset default-debug               # build library + tests + sandbox
-ctest --preset default-debug --output-on-failure   # run the GoogleTest suite
+cmake --preset default-debug
+cmake --build --preset default-debug
+ctest --preset default-debug --output-on-failure
+```
+
+macOS (Apple Silicon):
+
+```bash
+cmake --preset macos-arm64
+cmake --build --preset default-debug
+ctest --preset default-debug --output-on-failure
+```
+
+macOS (Intel):
+
+```bash
+cmake --preset default-debug
+cmake --build --preset default-debug
+ctest --preset default-debug --output-on-failure
 ```
 
 Expected results:
 
 - Configure ends with `Build files have been written to: .../build`.
-- Build completes with no errors. You **will** see many
-  `cl : Command line warning D9025 : overriding '/EHs' with '/EHs-'` warnings —
-  these are **benign** (the project deliberately disables exceptions per the
-  constitution) and can be ignored.
-- CTest reports **`100% tests passed, 0 tests failed out of 7`**.
+- Build succeeds and produces sandbox binary output in `build/apps/sandbox/`.
+- CTest reports all tests passing.
+
+Windows note: warnings like `D9025 ... overriding '/EHs' with '/EHs-'` are expected.
 
 ---
 
 ## 5. Run the game
 
-### Headless (works everywhere, no GPU needed)
+Full controls are in [apps/sandbox/README.md](../apps/sandbox/README.md).
 
-```powershell
-.\build\apps\sandbox\ea-sandbox.exe --headless --seed 42 --frames 600 --out trace.csv
-```
+macOS app paths (from repository root):
 
-Expected output: `trace_digest=... frames=600 scene=rope` and exit code 0. Same seed
-always produces the same digest — that's the determinism guarantee (Article 5).
+- App bundle path: `build/apps/sandbox/ea-sandbox.app`
+- Executable path: `build/apps/sandbox/ea-sandbox.app/Contents/MacOS/ea-sandbox`
 
-### Interactive window
+Windows interactive:
 
 ```powershell
 .\build\apps\sandbox\ea-sandbox.exe
 ```
 
-A 1280×720 window opens showing the verlet rope scene. Press `1`–`4` to switch
-scenes, `Space` to pause, `Esc` to quit. Full controls are in
-[apps/sandbox/README.md](../apps/sandbox/README.md).
+macOS interactive:
 
-> **On a VM / RDP session this will likely fail** with
-> `GLFW: Error: 65542 ... WGL: The driver does not appear to support OpenGL`.
-> That is not a build problem — the VM's virtual display adapter has no hardware
-> OpenGL driver. Fix it in step 7.
+```bash
+open build/apps/sandbox/ea-sandbox.app --args --seed 42
+```
 
-### Screenshot capture (headless-ish visual check)
+macOS direct binary (useful for stderr output):
+
+```bash
+./build/apps/sandbox/ea-sandbox.app/Contents/MacOS/ea-sandbox --seed 42
+```
+
+Cross-platform headless determinism run:
+
+Windows:
+
+```powershell
+.\build\apps\sandbox\ea-sandbox.exe --headless --seed 42 --frames 600 --out trace.csv
+```
+
+macOS:
+
+```bash
+./build/apps/sandbox/ea-sandbox.app/Contents/MacOS/ea-sandbox --headless --seed 42 --frames 600 --out trace.csv
+```
+
+Screenshot capture (relative path only):
+
+Windows:
 
 ```powershell
 .\build\apps\sandbox\ea-sandbox.exe --seed 42 --scene rope --screenshot proof.png --warmup 120
 ```
 
-> Use a **relative** output path — raylib prefixes the working directory onto the
-> path you give it, so absolute paths fail to save.
+macOS:
+
+```bash
+./build/apps/sandbox/ea-sandbox.app/Contents/MacOS/ea-sandbox --seed 42 --scene rope --screenshot proof.png --warmup 120
+```
 
 ---
 
 ## 6. Install Spec-Kit (Specify CLI) locally
 
-> **Already wired into this repo:** the `.specify/` folder (templates, scripts,
-> constitution) and the `.github/prompts/speckit.*.prompt.md` files are committed,
-> so the `/speckit.*` slash commands work in VS Code Copilot Chat out of the box —
-> no install needed to follow the workshop. Install the CLI below to verify your
-> environment (`specify check`) and to scaffold Spec-Kit into **your own** projects.
+> This repository already includes `.specify/` and the Copilot prompt wiring, so
+> `/speckit.*` prompts work in VS Code without local CLI install. Install Specify
+> CLI only if you want `specify check` locally or to scaffold Spec-Kit into your
+> own projects.
 
-Requires Git (from step 1) and Python 3.11+ — if no suitable Python is on the
-machine, uv downloads a managed one automatically during the install below.
-
-### Install uv, then the Specify CLI
+Windows install:
 
 ```powershell
-# 1. Install uv (Python package/tool manager)
 winget install --id astral-sh.uv
-#    ...or, without winget:
-#    powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# 2. Open a NEW PowerShell so uv is on PATH, then install the CLI.
-#    Pin a release tag for a reproducible workshop setup — check
-#    https://github.com/github/spec-kit/releases for the latest (v0.12.4 as of writing):
 uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.12.4
 ```
 
-> **Why pin?** This repo's `.specify/` templates and prompts were generated by a
-> specific Spec-Kit release. Pinning the same tag keeps everyone in the workshop on
-> identical tooling. Drop the `@v0.12.4` suffix to install the latest instead, and
-> upgrade later with `specify self upgrade`.
+macOS install (Homebrew uv):
 
-### Verify
+```bash
+brew install uv
+uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.12.4
+```
 
-```powershell
+Verify (both platforms):
+
+```text
 specify version
 specify check
 ```
 
-`specify check` confirms the CLI can find Git and your AI coding agents (VS Code
-with Copilot counts). Both commands succeeding means Spec-Kit is installed.
+Optional scaffold in your own project:
 
-### Optional — scaffold Spec-Kit into your own project
-
-```powershell
-cd C:\path\to\your-project
+```text
 specify init --here --integration copilot
 ```
 
-> **Do not run `specify init` inside this repo** — it regenerates `.specify/` and
-> the `.github/prompts/speckit.*` files and can overwrite the workshop's customized
-> versions. Use it only in your own projects.
+> Do not run `specify init` in this workshop repo because it can overwrite
+> customized workshop templates/prompts.
 
 ---
 
-## 7. VM fix — software OpenGL (Mesa llvmpipe)
+## 7. Windows VM fix — software OpenGL (Mesa llvmpipe)
 
-If the interactive window fails with the WGL error above, drop Mesa's
-software-rendered `opengl32.dll` next to the exe. Verified steps:
+Windows-only. If interactive launch fails with `WGL ... does not appear to support
+OpenGL`, copy Mesa software OpenGL DLLs next to the sandbox exe:
 
 ```powershell
-# 1. Download Mesa3D for Windows (MSVC release) and the standalone 7-Zip extractor
 Invoke-WebRequest "https://github.com/pal1000/mesa-dist-win/releases/download/26.1.3/mesa3d-26.1.3-release-msvc.7z" -OutFile "$env:TEMP\mesa3d.7z"
 Invoke-WebRequest "https://www.7-zip.org/a/7zr.exe" -OutFile "$env:TEMP\7zr.exe"
 
-# 2. (Recommended) Verify the download against the GitHub release SHA-256 digest
 (Get-FileHash "$env:TEMP\mesa3d.7z" -Algorithm SHA256).Hash.ToLower()
 # expect: 6dd431f4620cea73970b13e3ffa94f721f2a3924306b8a4283c97648cdb6eb9c
 
-# 3. Extract and copy the x64 DLLs next to the game executable
 & "$env:TEMP\7zr.exe" x "$env:TEMP\mesa3d.7z" -o"$env:TEMP\mesa3d" -y
 Copy-Item "$env:TEMP\mesa3d\x64\*.dll" ".\build\apps\sandbox\" -Force
 ```
-
-Run the game again — the log should now show:
-
-```text
-INFO: GL: OpenGL device information:
-INFO:     > Vendor:   Mesa
-INFO:     > Renderer: llvmpipe (LLVM ..., 256 bits)
-```
-
-Expect ~15–20 fps (CPU rendering). That's normal and plenty for the workshop demo.
-Newer Mesa releases work too — check
-[pal1000/mesa-dist-win releases](https://github.com/pal1000/mesa-dist-win/releases)
-and verify the SHA-256 digest shown on the release page.
-
-> The DLLs live only in `build\apps\sandbox\` (untracked build output). Deleting the
-> build folder removes them — just re-run the copy after a clean rebuild.
 
 ---
 
@@ -230,41 +258,42 @@ and verify the SHA-256 digest shown on the release page.
 
 | Symptom | Cause / fix |
 |---|---|
-| `cmake` / `ninja` not recognized | You're not in a Developer PowerShell. Redo step 2. |
-| `Could not find toolchain file: /scripts/buildsystems/vcpkg.cmake` | `VCPKG_ROOT` is unset in this shell. Redo step 3. |
-| vcpkg error about `builtin-baseline` commit | Standalone vcpkg was cloned shallow. Run `git fetch --unshallow` inside `$env:VCPKG_ROOT`, or use the VS-bundled vcpkg. |
-| Linker errors about machine type x86 vs x64 | Dev shell launched without `-Arch amd64`. Open a new shell with the flag. |
-| `WGL: The driver does not appear to support OpenGL` + assertion in `window.c` | No hardware OpenGL (VM/RDP). Apply step 7. |
-| `MESA: error: ZINK: failed to load vulkan-1.dll` in the log | Harmless — Mesa probes Vulkan first, then falls back to llvmpipe. |
-| Hundreds of `D9025 overriding '/EHs' with '/EHs-'` warnings | Expected. Exceptions are disabled by design (constitution Article 2). |
-| Screenshot "Failed to export image" | Absolute output path. Use a relative path (see step 5). |
-| CI runner / no raylib wanted | Configure with `cmake --preset default-debug -DENGINE_DEMO_BUILD_SANDBOX=OFF`. Tests still run. |
-| Stale/broken `build\` after toolchain change | Delete the `build` folder and reconfigure from step 4. |
-| `specify` / `uv` not recognized | Open a new PowerShell after installing uv (step 6), or re-run the `uv tool install` line. |
+| `Could not find toolchain file ... vcpkg.cmake` | `VCPKG_ROOT` is unset in this shell. Re-export and reconfigure. |
+| `cmake` / `ninja` not recognized (Windows) | Not in Developer PowerShell. Redo section 2. |
+| Linker mismatch x86 vs x64 (Windows) | Developer shell launched without `-Arch amd64`. |
+| `open ea-sandbox.app ...` fails (macOS) | Wrong path from repo root. Use `open build/apps/sandbox/ea-sandbox.app --args ...`. |
+| Missing app bundle after build (macOS) | Re-run configure/build from section 4 with `macos-arm64` on Apple Silicon. |
+| `WGL ... does not appear to support OpenGL` (Windows VM/RDP) | Apply section 7 Mesa workaround. |
+| Screenshot export fails | Use a relative output path. |
+| CI/no raylib needed | Configure with `cmake --preset default-debug -DENGINE_DEMO_BUILD_SANDBOX=OFF`. |
+| `specify` / `uv` not recognized | Open a new shell and re-run install command. |
 
 ---
 
-## 9. Quick reference — full clean setup, one block
+## 9. Quick reference
+
+Windows:
 
 ```powershell
-# In a fresh PowerShell:
 $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
 & "$vs\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -SkipAutomaticLocation
 $env:VCPKG_ROOT = "$vs\VC\vcpkg"
-cd C:\code\speckit-workshop-demo
 
 cmake --preset default-debug
 cmake --build --preset default-debug
 ctest --preset default-debug --output-on-failure
-
-.\build\apps\sandbox\ea-sandbox.exe --headless --seed 42 --frames 600 --out trace.csv
-.\build\apps\sandbox\ea-sandbox.exe    # interactive (apply step 7 first on a VM)
-
-# Optional — Spec-Kit CLI (see step 6; needs a new shell after installing uv)
-winget install --id astral-sh.uv
-uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.12.4
-specify check
+.\build\apps\sandbox\ea-sandbox.exe
 ```
 
-You're ready for the workshop — head back to
+macOS (Apple Silicon):
+
+```bash
+export VCPKG_ROOT="$HOME/vcpkg"
+cmake --preset macos-arm64
+cmake --build --preset default-debug
+ctest --preset default-debug --output-on-failure
+open build/apps/sandbox/ea-sandbox.app --args --seed 42
+```
+
+You're ready for the workshop. Continue with
 [docs/speckit-workshop-training.md](speckit-workshop-training.md).
