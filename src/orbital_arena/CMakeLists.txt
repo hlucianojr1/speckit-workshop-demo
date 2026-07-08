@@ -5,6 +5,7 @@ add_library(orbital_arena STATIC
     arena.cpp
     gravity_well.cpp
     input.cpp
+    match.cpp
     scoring.cpp
 )
 

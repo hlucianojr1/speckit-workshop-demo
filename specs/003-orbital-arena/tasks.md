@@ -149,7 +149,7 @@ Independent Test).
       the match that tick with that player as winner (FR-006, US2 sc.3); two players
       reaching ≥100 on the same tick → `sudden_death = true`, next sole-capture tick
       decides (FR-008, US2 sc.4); no scoring after `game_over` (US2 sc.3).
-- [ ] T010 [P] [US2] Write failing GTests for the match state machine in
+- [x] T010 [P] [US2] Write failing GTests for the match state machine in
       `tests/orbital_arena/test_match.cpp` (~80 lines): only legal transitions
       `lobby → countdown → playing → game_over → lobby` (FR-012); all joined (2–4) players
       ready → countdown (US2 sc.1); countdown is exactly `kCountdownTicks = 180` integer
@@ -167,7 +167,7 @@ Independent Test).
       with win detection (~60 lines): `check_win_condition()` evaluating FR-006/FR-008
       after each tick's captures, sudden-death entry/resolution, winner latching, score
       freeze. All T008 tests green. (depends on T007, T008)
-- [ ] T011 [US2] Implement match state machine in `include/orbital_arena/match.h` +
+- [x] T011 [US2] Implement match state machine in `include/orbital_arena/match.h` +
       `src/orbital_arena/match.cpp` (~110 lines): `match_state` enum, `player_slot`
       roster (joined/ready/departed per data-model.md), integer tick countdown, transition
       guards returning `arena_status::wrong_state` for illegal calls (Article 1 — no
