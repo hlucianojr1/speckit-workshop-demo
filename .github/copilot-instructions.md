@@ -31,5 +31,5 @@ Every code change must satisfy all 8 articles.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-specs/002-sandbox-vfx-visualization/plan.md
+specs/003-orbital-arena/plan.md
 <!-- SPECKIT END -->
