@@ -17,3 +17,4 @@ endfunction()
 
 orbital_arena_add_test(test_arena_integration test_arena_integration.cpp)
 orbital_arena_add_test(test_input             test_input.cpp)
+orbital_arena_add_test(test_gravity_well      test_gravity_well.cpp)

@@ -3,6 +3,7 @@
 
 add_library(orbital_arena STATIC
     arena.cpp
+    input.cpp
 )
 
 target_include_directories(orbital_arena PUBLIC

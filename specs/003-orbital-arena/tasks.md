@@ -66,13 +66,13 @@ roster, the arena tick, and the replay log; no story's integration path works wi
 
 **⚠️ CRITICAL**: Complete before any user story integration work.
 
-- [ ] T002 [P] Write failing GTests for input in `tests/orbital_arena/test_input.cpp`
+- [x] T002 [P] Write failing GTests for input in `tests/orbital_arena/test_input.cpp`
       (~70 lines): `input_frame` steer clamped to unit box and strength clamped 0..1 on
       ingest (FR-015); fixed player→well mapping set at lobby time; append-only input log
       records inputs in every match state (FR-016), returns `arena_status::log_full` when
       the reserved capacity is exhausted; log is `reserve()`d once (Article 6). Register
       in `tests/orbital_arena/CMakeLists.txt`. MUST fail to compile/link before T003.
-- [ ] T003 Implement input module in `include/orbital_arena/input.h` +
+- [x] T003 Implement input module in `include/orbital_arena/input.h` +
       `src/orbital_arena/input.cpp` (~80 lines): `input_frame { float steer[2]; float strength; }`,
       `tick_inputs = input_frame[kMaxPlayers]`, log as
       `eastl::vector<tick_inputs>` with explicit `engine_demo::allocator&` (Articles 3–4),
