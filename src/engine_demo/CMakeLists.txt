@@ -6,6 +6,9 @@ add_library(engine_demo
     sim/rng.cpp
     ecs/world.cpp
     physics/constraint.cpp
+    vfx/particle.cpp
+    vfx/force_applicator.cpp
+    vfx/emitter.cpp
 )
 
 target_include_directories(engine_demo PUBLIC

@@ -1,5 +1,6 @@
 #include "scene.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <new>
@@ -7,6 +8,23 @@
 namespace ea_sandbox {
 
 namespace {
+
+[[nodiscard]] engine_demo::vfx::emitter_config make_vfx_emitter_config(std::uint64_t seed) noexcept {
+    engine_demo::vfx::emitter_config cfg{};
+    cfg.shape = engine_demo::vfx::sphere_shape{{0.0f, 0.0f, 0.0f}, scene::kVfxSpawnRadius};
+    cfg.seed = seed ^ scene::kVfxSeedSalt;
+    cfg.speed_min = 1.5f;
+    cfg.speed_max = 4.0f;
+    cfg.lifetime_min_seconds = scene::kVfxLifetimeSeconds;
+    cfg.lifetime_max_seconds = scene::kVfxLifetimeSeconds;
+    cfg.color[0] = 1.0f;
+    cfg.color[1] = 0.85f;
+    cfg.color[2] = 0.4f;
+    cfg.color[3] = 1.0f;
+    cfg.size_min = 0.02f;
+    cfg.size_max = 0.05f;
+    return cfg;
+}
 
 [[nodiscard]] std::uint64_t fnv1a_mix(std::uint64_t hash, double v) noexcept {
     // Hash a double's IEEE-754 bit pattern. Reinterpret via memcpy-equivalent.
@@ -55,7 +73,9 @@ scene::scene(std::uint64_t seed)
       m_anchor_flags{m_alloc_ref},
       m_edges{m_alloc_ref},
       m_particles{m_alloc_ref},
-      m_trails{m_alloc_ref} {
+      m_trails{m_alloc_ref},
+      m_vfx_pool{m_alloc, kVfxPoolCapacity},
+      m_vfx_emitter{m_alloc, m_vfx_pool, make_vfx_emitter_config(seed)} {
     rebuild_scene(seed);
 }
 
@@ -89,6 +109,18 @@ void scene::reset_solver() noexcept {
     // Rebuild a fresh solver in-place (clears m_bodies + m_constraints).
     m_solver.~constraint_solver();
     new (&m_solver) engine_demo::physics::constraint_solver{m_alloc};
+}
+
+void scene::reset_vfx() noexcept {
+    // Rebuild the VFX pool + emitter in-place, mirroring reset_solver() above. Called only
+    // from rebuild_scene() (an explicit reseed/scene-switch action, not a per-frame hot
+    // path), so the one-time arena reallocation here is the same accepted tradeoff
+    // reset_solver() already makes.
+    m_vfx_emitter.~emitter();
+    m_vfx_pool.~particle_pool();
+    new (&m_vfx_pool) engine_demo::vfx::particle_pool{m_alloc, kVfxPoolCapacity};
+    new (&m_vfx_emitter)
+        engine_demo::vfx::emitter{m_alloc, m_vfx_pool, make_vfx_emitter_config(m_seed)};
 }
 
 void scene::add_pinned_body(double x, double y) noexcept {
@@ -140,6 +172,7 @@ void scene::rebuild_scene(std::uint64_t /*seed*/) noexcept {
     m_trails.clear();
 
     reset_solver();
+    reset_vfx();
 
     switch (m_kind) {
         case scene_kind::rope:
@@ -501,20 +534,26 @@ void scene::substep(double dt) noexcept {
             if (p.x < -3.0) {
                 p.x = -3.0;
                 p.vx = -p.vx * 0.85;
+                spawn_vfx_spark(p.x, p.y);
             } else if (p.x > 3.0) {
                 p.x = 3.0;
                 p.vx = -p.vx * 0.85;
+                spawn_vfx_spark(p.x, p.y);
             }
             if (p.y < -2.0) {
                 p.y = -2.0;
                 p.vy = -p.vy * 0.85;
+                spawn_vfx_spark(p.x, p.y);
             } else if (p.y > 2.0) {
                 p.y = 2.0;
                 p.vy = -p.vy * 0.85;
+                spawn_vfx_spark(p.x, p.y);
             }
         }
     }
-
+    // VFX: age/retire live particles once per substep, after all physics/spark emission
+    // for this step (Feature 002). Render-only — never touches digest-contributing state.
+    m_vfx_emitter.tick(dt);
     m_sim_time += dt;
 }
 
@@ -564,6 +603,29 @@ std::uint64_t scene::state_digest() const noexcept {
         h = fnv1a_mix(h, p.y);
     }
     return h;
+}
+
+std::size_t scene::vfx_particle_count() const noexcept {
+    return m_vfx_pool.live_count();
+}
+
+scene::vfx_particle_view scene::vfx_particle_at(std::size_t index) const noexcept {
+    const auto& p = m_vfx_pool.live_particles()[index];
+    const double fraction = std::clamp(
+        p.remaining_lifetime_seconds / kVfxLifetimeSeconds, 0.0, 1.0);
+    return vfx_particle_view{p.position[0], p.position[1], p.size, static_cast<float>(fraction)};
+}
+
+void scene::spawn_vfx_burst(double wx, double wy) noexcept {
+    m_vfx_emitter.set_shape(engine_demo::vfx::sphere_shape{
+        {static_cast<float>(wx), static_cast<float>(wy), 0.0f}, kVfxSpawnRadius});
+    (void)m_vfx_emitter.try_emit(static_cast<std::uint32_t>(kVfxBurstCount));
+}
+
+void scene::spawn_vfx_spark(double wx, double wy) noexcept {
+    m_vfx_emitter.set_shape(engine_demo::vfx::sphere_shape{
+        {static_cast<float>(wx), static_cast<float>(wy), 0.0f}, kVfxSpawnRadius});
+    (void)m_vfx_emitter.try_emit(static_cast<std::uint32_t>(kVfxSparkCount));
 }
 
 }  // namespace ea_sandbox

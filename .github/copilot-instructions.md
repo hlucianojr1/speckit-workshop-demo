@@ -12,7 +12,7 @@
 - Language: C++20 with `-fno-exceptions -fno-rtti`
 - Containers: EASTL (never `std::` containers outside labeled interop boundaries)
 - Dependencies: vcpkg manifest (`vcpkg.json`) — EASTL, GoogleTest, fmt, nlohmann-json, raylib
-- Library: `include/engine_demo/` + `src/engine_demo/` (allocator, ecs, physics, sim, frame_budget)
+- Library: `include/engine_demo/` + `src/engine_demo/` (allocator, ecs, physics, sim, frame_budget, vfx)
 - Demo app: `apps/sandbox/` (raylib, optional)
 - Tests: GoogleTest, wired via CTest in `tests/engine_demo/`
 
@@ -30,5 +30,6 @@ Every code change must satisfy all 8 articles.
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+shell commands, and other important information, read the current plan:
+specs/002-sandbox-vfx-visualization/plan.md
 <!-- SPECKIT END -->

@@ -24,6 +24,7 @@
 #include "engine_demo/physics/constraint.h"
 #include "engine_demo/sim/game_loop.h"
 #include "engine_demo/sim/rng.h"
+#include "engine_demo/vfx/emitter.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -76,6 +77,17 @@ class [[nodiscard]] scene {
     static constexpr double kFixedStepSeconds = 1.0 / 60.0;
     static constexpr double kGravityY = 9.81;
     static constexpr std::uint32_t kSolverIterations = 8;
+
+    // VFX (Feature 002: Sandbox VFX Visualization). See
+    // specs/002-sandbox-vfx-visualization/data-model.md for the full rationale.
+    static constexpr std::size_t kVfxPoolCapacity = 2048;
+    static constexpr std::size_t kVfxBurstCount = 24;
+    static constexpr std::size_t kVfxSparkCount = 6;
+    static constexpr float kVfxSpawnRadius = 0.03f;
+    static constexpr double kVfxLifetimeSeconds = 0.6;
+    // XOR-folded into m_seed for the VFX emitter's seed; never drawn from m_rng, so VFX
+    // activity never perturbs the scene's existing rng draw order (research.md §3).
+    static constexpr std::uint64_t kVfxSeedSalt = 0x564658u;
 
     explicit scene(std::uint64_t seed);
     ~scene();
@@ -144,6 +156,26 @@ class [[nodiscard]] scene {
     // Used by headless mode + the golden-trace CI assertion.
     [[nodiscard]] std::uint64_t state_digest() const noexcept;
 
+    // VFX (render-only; strictly excluded from state_digest()). See
+    // specs/002-sandbox-vfx-visualization/contracts/scene-vfx.md.
+    struct vfx_particle_view {
+        float x{0.0f};
+        float y{0.0f};
+        float size{1.0f};
+        float life_fraction{0.0f};
+    };
+
+    [[nodiscard]] std::size_t vfx_particle_count() const noexcept;
+    [[nodiscard]] vfx_particle_view vfx_particle_at(std::size_t index) const noexcept;
+
+    // Right-click VFX burst at (wx, wy), additive to spawn_particle_burst. Render-only:
+    // never affects state_digest(). Gracefully handles pool exhaustion (no crash).
+    void spawn_vfx_burst(double wx, double wy) noexcept;
+
+    // Direct view of the arena's current usage. Exists solely to let tests verify Article 6
+    // (no allocation) at the scene level; not used by production code.
+    [[nodiscard]] std::size_t arena_bytes_used() const noexcept { return m_alloc.bytes_used(); }
+
    private:
     void rebuild_scene(std::uint64_t seed) noexcept;
     void substep(double dt) noexcept;
@@ -155,6 +187,8 @@ class [[nodiscard]] scene {
     void build_particle_storm() noexcept;
 
     void reset_solver() noexcept;
+    void reset_vfx() noexcept;
+    void spawn_vfx_spark(double wx, double wy) noexcept;
     void add_pinned_body(double x, double y) noexcept;
     void add_dynamic_body(double x, double y) noexcept;
     void add_edge(std::size_t a, std::size_t b, double rest) noexcept;
@@ -179,6 +213,11 @@ class [[nodiscard]] scene {
     eastl::vector<std::size_t, engine_demo::eastl_allocator_ref> m_edges;  // flat (a,b) pairs
     eastl::vector<particle, engine_demo::eastl_allocator_ref> m_particles;
     eastl::vector<trail_point, engine_demo::eastl_allocator_ref> m_trails;  // P * kTrailLength
+
+    // VFX (Feature 002). Shared by right-click bursts and collision sparks; shape is
+    // repositioned per event via emitter::set_shape rather than reconstructing the emitter.
+    engine_demo::vfx::particle_pool m_vfx_pool;
+    engine_demo::vfx::emitter m_vfx_emitter;
 
     // Held-node drag state. m_held_index >= m_body_ids.size() => none held.
     std::size_t m_held_index{static_cast<std::size_t>(-1)};
