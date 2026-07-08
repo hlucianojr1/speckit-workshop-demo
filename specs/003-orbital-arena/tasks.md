@@ -229,7 +229,7 @@ Independent Test).
 
 ### Tests for User Story 4 (write first, MUST fail)
 
-- [ ] T014 [P] [US4] Write failing GTests for snapshot + hash in
+- [x] T014 [P] [US4] Write failing GTests for snapshot + hash in
       `tests/orbital_arena/test_snapshot.cpp` (~70 lines): `match_snapshot` is a flat POD
       (static_asserts: `is_trivially_copyable`, no pointers) per FR-018/Article 11;
       capture → restore round-trip reproduces identical subsequent hashes; `state_hash()`
@@ -250,7 +250,7 @@ Independent Test).
 
 ### Implementation for User Story 4
 
-- [ ] T015 [US4] Implement snapshot module in `include/orbital_arena/snapshot.h` +
+- [x] T015 [US4] Implement snapshot module in `include/orbital_arena/snapshot.h` +
       `src/orbital_arena/snapshot.cpp` (~90 lines): `match_snapshot` POD exactly per
       data-model.md (state, tick, seed, player_count, scores[4], winner, sudden_death,
       well_record[4], effect_record[4], pickup_record[3]); field-wise FNV-1a 64

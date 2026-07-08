@@ -8,6 +8,7 @@ add_library(orbital_arena STATIC
     match.cpp
     powerup.cpp
     scoring.cpp
+    snapshot.cpp
 )
 
 target_include_directories(orbital_arena PUBLIC
