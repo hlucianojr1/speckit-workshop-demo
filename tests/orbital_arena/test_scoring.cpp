@@ -10,8 +10,10 @@ namespace {
 using engine_demo::vfx::particle;
 using orbital_arena::award_capture;
 using orbital_arena::capture_result;
+using orbital_arena::evaluate_win;
 using orbital_arena::gravity_well;
 using orbital_arena::kMaxPlayers;
+using orbital_arena::reset_scores;
 using orbital_arena::resolve_capture;
 using orbital_arena::resolve_captures;
 using orbital_arena::score_table;
@@ -123,6 +125,80 @@ TEST(scoring, resolve_captures_awards_and_zeroes_lifetime_same_tick) {
     EXPECT_EQ(particles[0].remaining_lifetime_seconds, 0.0);
     EXPECT_EQ(particles[1].remaining_lifetime_seconds, 0.0);
     EXPECT_GT(particles[2].remaining_lifetime_seconds, 0.0);
+}
+
+// --- T008: win rules (FR-006, FR-008) ---
+
+TEST(scoring, reaching_exactly_win_score_ends_match_that_tick) {
+    score_table table{};
+    table.scores[1] = 99;
+    award_capture(table, 1, 1, false);  // 99 + 1 = exactly 100 (US2 scenario 3)
+    const std::int8_t winner = evaluate_win(table, 2, 0b10u);
+    EXPECT_EQ(winner, 1);
+    EXPECT_EQ(table.winner, 1);
+    EXPECT_FALSE(table.sudden_death);
+}
+
+TEST(scoring, overshooting_past_win_score_also_wins) {
+    score_table table{};
+    table.scores[0] = 99;
+    award_capture(table, 0, 1, true);  // 99 + 2 = 101 under Double Points
+    const std::int8_t winner = evaluate_win(table, 2, 0b01u);
+    EXPECT_EQ(winner, 0);
+    EXPECT_EQ(table.scores[0], 101u);
+}
+
+TEST(scoring, simultaneous_crossers_enter_sudden_death_then_sole_scorer_wins) {
+    score_table table{};
+    table.scores[0] = 100;
+    table.scores[1] = 102;
+    // Both crossed on the same evaluation → sudden death, no winner yet (FR-008).
+    std::int8_t winner = evaluate_win(table, 2, 0b11u);
+    EXPECT_EQ(winner, -1);
+    EXPECT_TRUE(table.sudden_death);
+    EXPECT_EQ(table.winner, -1);
+
+    // Tick with no captures: still no winner.
+    winner = evaluate_win(table, 2, 0u);
+    EXPECT_EQ(winner, -1);
+
+    // Both contenders capture the same tick: sudden death continues.
+    winner = evaluate_win(table, 2, 0b11u);
+    EXPECT_EQ(winner, -1);
+    EXPECT_TRUE(table.sudden_death);
+
+    // Next sole-capture tick decides (US2 scenario 4).
+    table.scores[1] += 1;
+    winner = evaluate_win(table, 2, 0b10u);
+    EXPECT_EQ(winner, 1);
+    EXPECT_EQ(table.winner, 1);
+}
+
+TEST(scoring, no_scoring_after_winner_latched) {
+    score_table table{};
+    table.scores[3] = 100;
+    ASSERT_EQ(evaluate_win(table, 4, 0b1000u), 3);
+    // Scores freeze on the winning tick (US2 scenario 3).
+    award_capture(table, 0, 1, false);
+    award_capture(table, 3, 1, true);
+    EXPECT_EQ(table.scores[0], 0u);
+    EXPECT_EQ(table.scores[3], 100u);
+    // Re-evaluation keeps the latched winner.
+    EXPECT_EQ(evaluate_win(table, 4, 0b0001u), 3);
+    EXPECT_EQ(table.winner, 3);
+}
+
+TEST(scoring, reset_scores_clears_table_for_new_match) {
+    score_table table{};
+    table.scores[0] = 100;
+    table.scores[1] = 55;
+    ASSERT_EQ(evaluate_win(table, 2, 0b01u), 0);
+    table.sudden_death = true;  // force-set to prove reset clears it
+    reset_scores(table);
+    EXPECT_EQ(table.scores[0], 0u);
+    EXPECT_EQ(table.scores[1], 0u);
+    EXPECT_EQ(table.winner, -1);
+    EXPECT_FALSE(table.sudden_death);
 }
 
 }  // namespace

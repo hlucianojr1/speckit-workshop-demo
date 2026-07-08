@@ -102,7 +102,7 @@ the capture radius (spec.md US1 Independent Test).
       clamped to `±kArenaHalfExtent` (US1 sc.4); velocity magnitude capped at
       `kMaxWellSpeed` (FR-002); inactive well exerts zero pull (FR-013). Register in
       `tests/orbital_arena/CMakeLists.txt`.
-- [ ] T006 [P] [US1] Write failing GTests for capture contention in
+- [x] T006 [P] [US1] Write failing GTests for capture contention in
       `tests/orbital_arena/test_scoring.cpp` (~70 lines): nearest well wins a contested
       particle by strict minimum squared distance; exact distance tie → no capture that
       tick (FR-007, US1 sc.5); resolution identical under permuted well iteration order
@@ -119,7 +119,7 @@ the capture radius (spec.md US1 Independent Test).
       `vfx::particle_pool::live_particles()` spans (research.md D1 — NOT via
       `physics::constraint_solver`); boundary clamp + speed cap helpers. Per contract
       `contracts/gravity_well.md`. All T004 tests green. (depends on T004)
-- [ ] T007 [US1] Implement capture & scoring core in `include/orbital_arena/scoring.h` +
+- [x] T007 [US1] Implement capture & scoring core in `include/orbital_arena/scoring.h` +
       `src/orbital_arena/scoring.cpp` (~90 lines): `score_table`
       (`uint32_t scores[kMaxPlayers]`, `winner = -1`, `sudden_death = false`),
       `resolve_captures()` — squared-distance nearest-well contention in fixed well-index

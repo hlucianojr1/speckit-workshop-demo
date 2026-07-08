@@ -5,6 +5,7 @@ add_library(orbital_arena STATIC
     arena.cpp
     gravity_well.cpp
     input.cpp
+    scoring.cpp
 )
 
 target_include_directories(orbital_arena PUBLIC
