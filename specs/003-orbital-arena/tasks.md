@@ -94,7 +94,7 @@ the capture radius (spec.md US1 Independent Test).
 
 ### Tests for User Story 1 (write first, MUST fail)
 
-- [ ] T004 [P] [US1] Write failing GTests for gravity well in
+- [x] T004 [P] [US1] Write failing GTests for gravity well in
       `tests/orbital_arena/test_gravity_well.cpp` (~80 lines): `radial_acceleration()`
       inverse-square with clamped min distance, zero beyond `influence_radius`, scales
       linearly with `strength`, exactly zero at `strength == 0` (FR-003, US1 sc.1/3);
@@ -112,7 +112,7 @@ the capture radius (spec.md US1 Independent Test).
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Implement gravity well in `include/orbital_arena/gravity_well.h` +
+- [x] T005 [US1] Implement gravity well in `include/orbital_arena/gravity_well.h` +
       `src/orbital_arena/gravity_well.cpp` (~110 lines): POD `gravity_well` per
       data-model.md (position, velocity, strength, influence_radius, capture_radius,
       active); free functions `radial_acceleration()` + `is_within_capture()` applied to
