@@ -12,7 +12,7 @@
 #pragma once
 
 #include "engine_demo/allocator.h"
-#include "orbital_arena/arena.h"
+#include "orbital_arena/types.h"
 
 #include <EASTL/vector.h>
 

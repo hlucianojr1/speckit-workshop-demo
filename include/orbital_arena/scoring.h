@@ -12,8 +12,8 @@
 #pragma once
 
 #include "engine_demo/vfx/particle.h"
-#include "orbital_arena/arena.h"
 #include "orbital_arena/gravity_well.h"
+#include "orbital_arena/types.h"
 
 #include <EASTL/span.h>
 

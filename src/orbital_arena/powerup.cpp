@@ -101,6 +101,18 @@ void powerup_system::clear_all() noexcept {
     m_spawn_timer = kPowerupSpawnIntervalTicks;
 }
 
+void powerup_system::restore(eastl::span<const pickup> pickups,
+                             eastl::span<const active_effect> effects,
+                             std::uint32_t spawn_timer) noexcept {
+    for (std::uint32_t i = 0; i < kMaxFieldPickups; ++i) {
+        m_pickups[i] = i < pickups.size() ? pickups[i] : pickup{};
+    }
+    for (std::uint8_t i = 0; i < kMaxPlayers; ++i) {
+        m_effects[i] = i < effects.size() ? effects[i] : active_effect{};
+    }
+    m_spawn_timer = spawn_timer;
+}
+
 bool powerup_system::is_active(std::uint8_t player, powerup_kind kind) const noexcept {
     if (player >= kMaxPlayers) {
         return false;

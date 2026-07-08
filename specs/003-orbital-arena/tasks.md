@@ -238,7 +238,7 @@ Independent Test).
       hash differently. Register in `tests/orbital_arena/CMakeLists.txt`. *(Note: adds an
       8th test file beyond plan.md's list of 7 — snapshot has standalone public functions
       and Article 7 requires direct coverage.)*
-- [ ] T016 [US4] Replace the T001 smoke test with failing integration GTests in
+- [x] T016 [US4] Replace the T001 smoke test with failing integration GTests in
       `tests/orbital_arena/test_arena_integration.cpp` (~100 lines): `arena::tick(inputs)`
       executes the fixed pipeline forces → integrate → captures → scoring → power-ups →
       state machine (contract `contracts/arena.md`); consumes exactly one `input_frame`
@@ -255,7 +255,7 @@ Independent Test).
       data-model.md (state, tick, seed, player_count, scores[4], winner, sudden_death,
       well_record[4], effect_record[4], pickup_record[3]); field-wise FNV-1a 64
       `state_hash(const match_snapshot&)`. All T014 tests green. (depends on T014)
-- [ ] T017 [US4] Implement arena integration in `include/orbital_arena/arena.h` +
+- [x] T017 [US4] Implement arena integration in `include/orbital_arena/arena.h` +
       `src/orbital_arena/arena.cpp` (~140 lines): `arena` owns `match`, `score_table`,
       power-up module, input log, wells, one `sim::rng` seeded from the match seed
       (game-rule draws only, fixed order — research.md D6), a `vfx::emitter` +

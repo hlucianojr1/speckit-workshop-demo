@@ -96,6 +96,21 @@ arena_status match::acknowledge_results() noexcept {
     return arena_status::ok;
 }
 
+void match::restore(match_state state, std::uint8_t joined_players,
+                    const bool departed[kMaxPlayers]) noexcept {
+    const std::uint8_t joined = joined_players < kMaxPlayers ? joined_players : kMaxPlayers;
+    for (std::uint8_t i = 0; i < kMaxPlayers; ++i) {
+        if (i < joined) {
+            // Ready flags are not snapshot state: normalize (see header contract).
+            m_slots[i] = player_slot{true, state != match_state::lobby, departed[i]};
+        } else {
+            m_slots[i] = player_slot{};
+        }
+    }
+    m_state = state;
+    m_countdown_ticks = state == match_state::countdown ? kCountdownTicks : 0;
+}
+
 std::uint8_t match::joined_count() const noexcept {
     std::uint8_t count = 0;
     for (const player_slot& slot : m_slots) {

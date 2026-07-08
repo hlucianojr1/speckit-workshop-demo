@@ -18,8 +18,8 @@
 
 #include "engine_demo/allocator.h"
 #include "engine_demo/sim/rng.h"
-#include "orbital_arena/arena.h"
 #include "orbital_arena/gravity_well.h"
+#include "orbital_arena/types.h"
 
 #include <EASTL/optional.h>
 #include <EASTL/span.h>
@@ -90,6 +90,14 @@ class [[nodiscard]] powerup_system {
     // game_over: all effects end immediately, pickups cleared, spawn timer reset for
     // the next match (US3 scenario 6, FR-011).
     void clear_all() noexcept;
+
+    // Snapshot support (T017, Article 11 — additive beyond contracts/powerup.md):
+    // remaining spawn-timer ticks for match_snapshot::powerup_timer_ticks, and a
+    // restore that installs pickup/effect slots + timer verbatim from a snapshot.
+    [[nodiscard]] std::uint32_t spawn_timer_ticks() const noexcept { return m_spawn_timer; }
+    void restore(eastl::span<const pickup> pickups,
+                 eastl::span<const active_effect> effects,
+                 std::uint32_t spawn_timer) noexcept;
 
     [[nodiscard]] bool is_active(std::uint8_t player, powerup_kind kind) const noexcept;
     [[nodiscard]] float strength_multiplier(std::uint8_t player) const noexcept;

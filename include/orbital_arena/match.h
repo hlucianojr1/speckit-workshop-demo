@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "orbital_arena/arena.h"
+#include "orbital_arena/types.h"
 
 #include <EASTL/optional.h>
 
@@ -61,6 +61,14 @@ class [[nodiscard]] match {
 
     // game_over -> lobby; ready flags cleared, departed players removed (FR-012).
     [[nodiscard]] arena_status acknowledge_results() noexcept;
+
+    // Snapshot support (T017, Article 11 — additive beyond contracts/match.md):
+    // reconstructs the automaton from a match_snapshot. Roster ready flags and the
+    // countdown remaining-ticks counter are NOT snapshot fields (data-model.md), so
+    // they are normalized: joined players are marked ready outside lobby, and a
+    // countdown-state restore restarts the full kCountdownTicks timer.
+    void restore(match_state state, std::uint8_t joined_players,
+                 const bool departed[kMaxPlayers]) noexcept;
 
     [[nodiscard]] match_state state() const noexcept { return m_state; }
     [[nodiscard]] bool gameplay_input_enabled() const noexcept {
