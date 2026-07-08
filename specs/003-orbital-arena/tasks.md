@@ -263,7 +263,7 @@ Independent Test).
       `reserve()`d at construction (Article 6); `tick(inputs)` composes the full pipeline
       inside a `frame_budget` measure; `capture_snapshot()`/`restore()`. All T016 tests
       green. (depends on T003, T005, T007, T009, T011, T013, T015, T016)
-- [ ] T018 [US4] Write 1000-frame replay determinism + fairness GTests in
+- [x] T018 [US4] Write 1000-frame replay determinism + fairness GTests in
       `tests/orbital_arena/test_replay_determinism.cpp` (~100 lines, test-only — Article
       7a/10): (a) scripted 1000-frame match at fixed seed recorded, then replayed from
       `(seed, input log)` — every 60-frame hash and the final scoreboard identical
