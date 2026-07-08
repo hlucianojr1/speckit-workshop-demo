@@ -33,6 +33,7 @@ target_include_directories(ea-sandbox PRIVATE
 
 target_link_libraries(ea-sandbox PRIVATE
     engine_demo
+    orbital_arena
     raylib
     fmt::fmt
 )

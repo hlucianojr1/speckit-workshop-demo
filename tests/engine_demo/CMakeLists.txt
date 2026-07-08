@@ -35,7 +35,17 @@ target_include_directories(test_sandbox_render PRIVATE
 
 # Sandbox scene VFX tests (Feature 002). scene.cpp is raylib-free by design, so it's
 # compiled directly into this test target — the same pattern as test_sandbox_render above.
+# scene.cpp embeds an orbital_arena::arena since Feature 003, hence the extra link.
 engine_demo_add_test(test_scene_vfx test_scene_vfx.cpp ${CMAKE_SOURCE_DIR}/apps/sandbox/scene.cpp)
 target_include_directories(test_scene_vfx PRIVATE
     ${CMAKE_SOURCE_DIR}
 )
+target_link_libraries(test_scene_vfx PRIVATE orbital_arena)
+
+# Sandbox orbital-arena scene tests (Feature 003, T019) — same scene.cpp direct-compile
+# pattern as test_scene_vfx.
+engine_demo_add_test(test_scene_orbital test_scene_orbital.cpp ${CMAKE_SOURCE_DIR}/apps/sandbox/scene.cpp)
+target_include_directories(test_scene_orbital PRIVATE
+    ${CMAKE_SOURCE_DIR}
+)
+target_link_libraries(test_scene_orbital PRIVATE orbital_arena)

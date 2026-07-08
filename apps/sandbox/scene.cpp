@@ -43,6 +43,29 @@ namespace {
     return hash;
 }
 
+// Deterministic sinusoidal autopilot for the orbital_arena scene (Feature 003,
+// research.md D7). Inputs derive PURELY from the arena's own tick index — no rng
+// stream anywhere in the scene is consumed — so (seed, tick) fully determines the
+// match and existing scenes' rng draw order is untouched. Frequencies are detuned
+// per player (not just phase-shifted): pure phase shifts make player 1's input the
+// exact negation of player 0's, which triggers the arena's bit-exact Article 9
+// mirror-fairness and locks the score in a permanent sudden-death tie.
+[[nodiscard]] orbital_arena::tick_inputs make_orbital_inputs(
+    std::uint64_t tick, std::uint8_t player_count) noexcept {
+    orbital_arena::tick_inputs in{};
+    const double t = static_cast<double>(tick) * orbital_arena::kTickSeconds;
+    for (std::uint8_t p = 0; p < player_count && p < orbital_arena::kMaxPlayers; ++p) {
+        const double phase =
+            6.283185307179586 * static_cast<double>(p) / static_cast<double>(player_count);
+        const double fx = 0.90 + 0.07 * static_cast<double>(p);
+        const double fy = 0.53 + 0.05 * static_cast<double>(p);
+        in.players[p].steer[0] = static_cast<float>(std::sin(t * fx + phase));
+        in.players[p].steer[1] = static_cast<float>(std::sin(t * fy + phase + 1.3));
+        in.players[p].strength = 1.0f;  // full pull — keeps captures (and scores) flowing
+    }
+    return in;
+}
+
 }  // namespace
 
 const char* scene_kind_name(scene_kind k) noexcept {
@@ -55,6 +78,22 @@ const char* scene_kind_name(scene_kind k) noexcept {
             return "cloth";
         case scene_kind::particle_storm:
             return "particle storm";
+        case scene_kind::orbital_arena:
+            return "orbital arena";
+    }
+    return "unknown";
+}
+
+const char* orbital_match_state_name(orbital_arena::match_state s) noexcept {
+    switch (s) {
+        case orbital_arena::match_state::lobby:
+            return "lobby";
+        case orbital_arena::match_state::countdown:
+            return "countdown";
+        case orbital_arena::match_state::playing:
+            return "playing";
+        case orbital_arena::match_state::game_over:
+            return "game over";
     }
     return "unknown";
 }
@@ -80,6 +119,10 @@ scene::scene(std::uint64_t seed)
 }
 
 scene::~scene() {
+    // Tear down the embedded orbital arena BEFORE freeing the backing buffer: its
+    // destructor dereferences a particle_pool placement-new'd inside m_arena_buffer,
+    // and the destructor body runs before member destructors do.
+    m_orbital.reset();
     delete[] m_arena_buffer;
 }
 
@@ -171,6 +214,10 @@ void scene::rebuild_scene(std::uint64_t /*seed*/) noexcept {
     m_particles.clear();
     m_trails.clear();
 
+    // The embedded orbital match is rebuilt from scratch for orbital_arena and torn
+    // down for every other kind (its pools deliberately die with the old arena state).
+    m_orbital.reset();
+
     reset_solver();
     reset_vfx();
 
@@ -186,6 +233,9 @@ void scene::rebuild_scene(std::uint64_t /*seed*/) noexcept {
             break;
         case scene_kind::particle_storm:
             build_particle_storm();
+            break;
+        case scene_kind::orbital_arena:
+            build_orbital_arena();
             break;
     }
 
@@ -360,6 +410,27 @@ void scene::build_particle_storm() noexcept {
     }
 }
 
+void scene::build_orbital_arena() noexcept {
+    // No rope/cloth bodies and no scene free particles — the embedded arena owns the
+    // whole world. It draws only from its own salted rng streams (seeded from m_seed),
+    // never from m_rng, so existing scenes' draw order stays untouched (T019).
+    orbital_arena::arena_config cfg{};
+    cfg.seed = m_seed;
+    cfg.player_count = kOrbitalPlayers;
+    cfg.half_extent = kOrbitalHalfExtent;
+    cfg.particle_capacity = orbital_arena::kTargetParticleCount;
+    m_orbital = orbital_arena::arena::create(m_alloc, cfg);
+    if (!m_orbital.has_value()) {
+        return;  // allocator exhaustion — scene renders empty, no crash (Article 1)
+    }
+    // Scripted lobby: both autopilot players join and ready up, so the match counts
+    // down and starts playing on its own — no interactive input required.
+    for (std::uint8_t p = 0; p < kOrbitalPlayers; ++p) {
+        (void)m_orbital->join(p);
+        (void)m_orbital->set_ready(p, true);
+    }
+}
+
 bool scene::grab_nearest_rope_node(double wx, double wy, double max_dist) noexcept {
     std::size_t best = static_cast<std::size_t>(-1);
     double best_d2 = max_dist * max_dist;
@@ -488,9 +559,18 @@ void scene::substep(double dt) noexcept {
     // Resolve distance constraints.
     (void)m_solver.solve(kSolverIterations);
 
-    // Free particles. Storm scene uses two orbital gravity wells; other
+    // Free particles. Storm scene uses two orbital gravity wells; the orbital
+    // arena scene delegates the entire world step to the embedded arena; other
     // scenes use a gentle downward gravity with bouncy world bounds.
-    if (m_kind == scene_kind::particle_storm) {
+    if (m_kind == scene_kind::orbital_arena) {
+        if (m_orbital.has_value()) {
+            const orbital_arena::tick_inputs in =
+                make_orbital_inputs(m_orbital->current_tick(), kOrbitalPlayers);
+            // log_full after kMaxRecordedTicks is expected on long interactive runs;
+            // gameplay still advances (input.h contract), so it is not an error here.
+            (void)m_orbital->tick(in);
+        }
+    } else if (m_kind == scene_kind::particle_storm) {
         constexpr double kWellX0 = -1.2;
         constexpr double kWellY0 = 0.4;
         constexpr double kWellX1 = 1.2;
@@ -601,6 +681,26 @@ std::uint64_t scene::state_digest() const noexcept {
         const particle& p = m_particles[i];
         h = fnv1a_mix(h, p.x);
         h = fnv1a_mix(h, p.y);
+    }
+    // Orbital arena contribution (Feature 003). Existing scene kinds never reach this
+    // block (m_orbital only engages for orbital_arena), so their traces stay
+    // byte-identical; the orbital scene's own digest covers wells, scores, tick, and
+    // the live particle field — the headless determinism proof for Article 10.
+    if (m_kind == scene_kind::orbital_arena && m_orbital.has_value()) {
+        const orbital_arena::arena& a = *m_orbital;
+        h = fnv1a_mix(h, static_cast<double>(a.current_tick()));
+        h = fnv1a_mix(h, static_cast<double>(static_cast<std::uint8_t>(a.state())));
+        for (std::uint8_t p = 0; p < kOrbitalPlayers; ++p) {
+            h = fnv1a_mix(h, static_cast<double>(a.score(p)));
+        }
+        for (const orbital_arena::gravity_well& w : a.wells()) {
+            h = fnv1a_mix(h, static_cast<double>(w.position[0]));
+            h = fnv1a_mix(h, static_cast<double>(w.position[1]));
+        }
+        for (const engine_demo::vfx::particle& p : a.particles().live_particles()) {
+            h = fnv1a_mix(h, static_cast<double>(p.position[0]));
+            h = fnv1a_mix(h, static_cast<double>(p.position[1]));
+        }
     }
     return h;
 }

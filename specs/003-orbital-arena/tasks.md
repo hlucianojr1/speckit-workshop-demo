@@ -284,7 +284,7 @@ Independent Test).
 **Purpose**: Workshop-visible visualization plus proof that the render layer changed
 nothing (plan task 11; render-only per spec.md scope note and research.md D7).
 
-- [ ] T019 Add sandbox scene `scene_kind::orbital_arena` + HUD (~150 lines, render-only):
+- [x] T019 Add sandbox scene `scene_kind::orbital_arena` + HUD (~150 lines, render-only):
       extend `apps/sandbox/scene.h` / `apps/sandbox/scene.cpp` with a new scene (template:
       `particle_storm`) that owns an `orbital_arena::arena` driven by deterministic
       scripted autopilot inputs (research.md D7 — no 4-keyboard problem); HUD in
@@ -294,7 +294,7 @@ nothing (plan task 11; render-only per spec.md scope note and research.md D7).
       `target_link_libraries` in `apps/sandbox/CMakeLists.txt` AND to the existing
       `test_scene_vfx` target in `tests/engine_demo/CMakeLists.txt` (it compiles
       `apps/sandbox/scene.cpp` directly). (depends on T017)
-- [ ] T020 Headless digest A/B verification + screenshots (verification only, ~0 new
+- [x] T020 Headless digest A/B verification + screenshots (verification only, ~0 new
       lines): (a) re-run the feature-002 golden-trace check — headless rope scene, seed
       42, 600 frames, `--trace` CSV twice (before/after T019 build) and diff byte-identical,
       proving the new scene left `state_digest()` untouched; (b) run the orbital_arena
