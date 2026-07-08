@@ -61,6 +61,34 @@ Spec-Kit pauses for human approval **between** `/speckit.plan` and `/speckit.tas
 **between every `/speckit.implement` task**. Coding Agent handoffs require human review of
 the produced PR before merge.
 
+## Orbital Arena Extension (applies to `orbital_arena` code only)
+
+Human-facing ground truth: `specs/orbital-arena/constitution.md`. For any feature whose
+code lives under `include/orbital_arena/`, `src/orbital_arena/`, or `tests/orbital_arena/`,
+the following additional articles bind every `/speckit.*` invocation:
+
+### Article 7a — Game-rule replay tests (modifies Article 7)
+
+Every **game rule** (scoring, capture, win condition, power-up effect) has a deterministic
+replay test that validates correct behavior across 1000 simulated frames at a fixed seed.
+
+### Article 9 — Competitive Fairness
+
+No game mechanic may provide asymmetric advantage based on player index. All players have
+identical starting conditions. Randomization (power-up spawning) uses a shared seed
+visible to all players for verifiability.
+
+### Article 10 — Lockstep Replay
+
+The game state must be fully deterministic from initial seed + input sequence. Any desync
+between two clients replaying the same input log is a critical bug. State hashing every
+60 frames for drift detection.
+
+### Article 11 — Spectator-Safe State
+
+All game state is representable as a flat serializable snapshot (no pointers, no handles
+crossing frame boundaries). This enables replay, spectating, and rollback netcode.
+
 ## Enforcement
 
 - **clang-tidy** (`.clang-tidy`) flags `bugprone-*`, `cert-*`, `cppcoreguidelines-*`,
