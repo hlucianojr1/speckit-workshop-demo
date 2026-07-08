@@ -43,7 +43,7 @@ ctest --preset default-debug --output-on-failure
 build so every later task compiles into a real target (plan.md "CMake Wiring" — the
 training's 8-task table omits this entirely).
 
-- [ ] T001 Create `orbital_arena` CMake scaffolding (~60 lines): new
+- [x] T001 Create `orbital_arena` CMake scaffolding (~60 lines): new
       `src/orbital_arena/CMakeLists.txt` (STATIC lib, `target_link_libraries(... PUBLIC engine_demo)`,
       `engine_demo_set_target_options(orbital_arena)`, include dir `${CMAKE_SOURCE_DIR}/include`);
       new `tests/orbital_arena/CMakeLists.txt` with `orbital_arena_add_test()` helper cloned
