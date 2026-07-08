@@ -42,10 +42,11 @@
   - [3.1 Session Overview](#31-session-overview)
   - [3.2 Analyzing the Existing Engine](#32-analyzing-the-existing-engine)
   - [3.3 Writing a New Constitution](#33-writing-a-new-constitution)
-  - [3.4 /specify — New Game Features](#34-specify--new-game-features)
-  - [3.5 /plan — Mapping Foundation to New Architecture](#35-plan--mapping-foundation-to-new-architecture)
-  - [3.6 /tasks — Delta Decomposition](#36-tasks--delta-decomposition)
-  - [3.7 /implement — Building on the Foundation](#37-implement--building-on-the-foundation)
+  - [3.4 /speckit.specify — New Game Features](#34-speckitspecify--new-game-features)
+  - [3.5 /speckit.plan — Mapping Foundation to New Architecture](#35-speckitplan--mapping-foundation-to-new-architecture)
+  - [3.6 /speckit.tasks — Delta Decomposition](#36-speckittasks--delta-decomposition)
+  - [3.7 /speckit.implement — Building on the Foundation](#37-speckitimplement--building-on-the-foundation)
+  - [3.7a Seeing It Run — Visualization and Screenshots](#37a-seeing-it-run--visualization-and-screenshots)
   - [3.8 How Spec-Kit Prevents Scope Creep](#38-how-spec-kit-prevents-scope-creep)
   - [3.9 Reflection and Key Takeaways](#39-reflection-and-key-takeaways)
 - [Part 4: Use Case — Cross-Language Game Transformation](#part-4-use-case--cross-language-game-transformation)
@@ -1074,6 +1075,10 @@ string_view interop, tests + stretch goal wiring)
 - Completed Parts 0–2 (understand the 5-stage flow and practiced it hands-on)
 - Familiarity with engine_demo subsystems (ECS, physics, RNG, frame budget)
 - Understanding of the constitutional model
+- **Features 001 (Particle VFX) and 002 (Sandbox VFX Visualization) merged into your working branch** — Part 3 reuses `vfx::emitter`/`vfx::particle_pool` as the particle field, and the sandbox scene infrastructure for visualization. On a fresh clone, merge them first and confirm a green `ctest` baseline before starting.
+
+> **Field-tested (2026-07-07):** this entire Part was executed end-to-end on branch `part3-orbital-arena` (feature branch `006-orbital-arena`, artifacts in `specs/003-orbital-arena/`). Callouts marked **Field note** below record where reality differed from the original script. Net result: a complete, playable Orbital Arena — 20 tasks, 148 tests, zero unplanned compile errors, tick cost 0.08 ms against the 16.67 ms Article 6 budget.
+
 
 **Value Proposition:** Starting a new game without Spec-Kit leads to "blank page paralysis" followed by ad-hoc decisions that conflict with the engine's design principles. Spec-Kit forces you to explicitly state what you're building BEFORE you build it, ensuring the new game inherits the engine's architectural strengths.
 
@@ -1087,12 +1092,15 @@ string_view interop, tests + stretch goal wiring)
 | ---------------------------- | --------------- | ---------------------------------------------------- |
 | `engine_demo::allocator`     | ✅ Yes          | None — arena allocator is game-agnostic              |
 | `ecs::world`                 | ✅ Yes          | None — generational handles work for any entity type |
-| `physics::constraint_solver` | ⚠️ Partial      | Need to add "gravity well" as a new force type       |
+| `physics::constraint_solver` | ✅ Yes          | None — it stays a verlet body/constraint system      |
+| `vfx::particle_pool/emitter` | ✅ Yes          | Reused as the free-particle field; gravity wells apply forces over its spans |
 | `sim::game_loop`             | ✅ Yes          | None — fixed-step accumulator is universal           |
 | `sim::rng`                   | ✅ Yes          | None — seeded RNG for replay works for competitive   |
 | `frame_budget`               | ✅ Yes          | None — timing telemetry is game-agnostic             |
 | Sandbox scenes               | ❌ No           | Replace with Orbital Arena scenes                    |
 | Sandbox HUD                  | ⚠️ Partial      | Replace HUD content, keep rendering infrastructure   |
+
+> **Field note:** an earlier draft of this table mapped gravity wells onto `physics::constraint_solver` ("add a new force type"). The real `/speckit.plan` run corrected this: `constraint_solver` is a verlet **body/constraint** system, while the free-floating particles actually live in `vfx::particle_pool`. Gravity wells became a **new module** (`orbital_arena::gravity_well`) that applies radial forces over particle-pool spans — the same pattern the sandbox's `particle_storm` scene already uses. Cataloging is a hypothesis; the plan stage is where Copilot verifies it against real headers.
 
 **Key Insight:** ~70% of the engine is reusable. Spec-Kit helps us focus the new specification on the **delta** — only what's new or changed.
 
@@ -1145,9 +1153,11 @@ crossing frame boundaries). This enables replay, spectating, and rollback netcod
 
 **Why a new constitution?** The original constitution governs a physics sandbox demo. Orbital Arena is a competitive game with fairness, replay, and networking concerns that don't exist in a single-player sandbox. The constitution captures these new non-negotiable constraints.
 
+> **Field note — where the constitution lives.** The original script never said. What worked: the human-facing copy at `specs/orbital-arena/constitution.md`, **and** the new articles merged into `.specify/memory/constitution.md` (the file the `/speckit.*` agents actually read), scoped with "applies to `orbital_arena` code only." If you skip the machine-copy sync, `/speckit.plan`'s constitution check silently runs against articles 1–8 only and Articles 9–11 are never enforced.
+
 ---
 
-### 3.4 /specify — New Game Features
+### 3.4 /speckit.specify — New Game Features
 
 **Prompt to Copilot:**
 
@@ -1170,6 +1180,8 @@ Features to specify:
 4. Match state machine (lobby → countdown → playing → game_over)
 5. Input system (player input → well control mapping)
 ```
+
+> **Field note — branch vs. spec-dir numbering can diverge.** On a repo with leftover feature branches, the git hook numbers the **branch** by scanning `git branch -a` (here: `006-orbital-arena`), while the specify workflow numbers the **spec directory** by scanning `specs/` (here: `specs/003-orbital-arena/`). Downstream commands follow `.specify/feature.json`, but the helper scripts (`setup-plan.sh`, `setup-tasks.sh`, `check-prerequisites.sh`) recompute the path from the branch name and will error or create a stray `specs/006-…` directory. Don't panic, don't "fix" the numbers — point the command at the directory recorded in `.specify/feature.json` and delete any stray dir.
 
 **Expected Output — Full Specification (excerpt for Scoring System):**
 
@@ -1240,7 +1252,7 @@ destroyed (entity removed from ECS world).
 
 ---
 
-### 3.5 /plan — Mapping Foundation to New Architecture
+### 3.5 /speckit.plan — Mapping Foundation to New Architecture
 
 **Key planning insight:** Show which existing modules map directly and which need new code.
 
@@ -1298,9 +1310,17 @@ destroyed (entity removed from ECS world).
 | 8   | Replay determinism test               | ~80   | Task 7           |
 ````
 
+> **Field note — three things the 8-row table omits, which the real plan had to add:**
+>
+> 1. **CMake wiring.** A new game library is 4 build-file changes: `src/orbital_arena/CMakeLists.txt` (new static lib), `tests/orbital_arena/CMakeLists.txt` (new CTest dir, **no `GTest::gmock`** — see §S.7's registry gotcha), plus one-line `add_subdirectory` edits in `src/` and `tests/`. There's also a knock-on: any existing test target that compiles `apps/sandbox/scene.cpp` directly must now link the new library. Make this an explicit first task.
+> 2. **Snapshot/state-hash module.** Articles 10–11 (lockstep replay, spectator-safe state) need a home — a flat POD `match_snapshot` + FNV-1a `state_hash()`. The plan grew a 9th module the training table never listed.
+> 3. **A visualization task** (§3.7a). Without a sandbox scene, the "complete game" is invisible — it exists only as green test output.
+>
+> The real plan produced **11 work units**; strict Article 7 test-first splitting turned those into **20 tasks** (test task before each impl task). Expect roughly 2× the unit count, not 8.
+
 ---
 
-### 3.6 /tasks — Delta Decomposition
+### 3.6 /speckit.tasks — Delta Decomposition
 
 Each task specifies ONLY what's new — never re-implementing existing subsystems.
 
@@ -1333,7 +1353,7 @@ Each task specifies ONLY what's new — never re-implementing existing subsystem
 
 ---
 
-### 3.7 /implement — Building on the Foundation
+### 3.7 /speckit.implement — Building on the Foundation
 
 When implementing gravity wells, Copilot can reference the existing physics solver:
 
@@ -1377,6 +1397,32 @@ namespace orbital_arena {
 } // namespace orbital_arena
 ```
 
+> **Field note:** the sketch above is illustrative — `vec2` doesn't exist in this repo. The real implementation follows house style (`float pos[2]`, matching `vfx::particle`), and every module takes an explicit `engine_demo::allocator&` (Article 4). The measured full-arena tick (500 particles + wells + captures + scoring + power-ups + state machine) came in at **0.08 ms** against the 16.67 ms Article 6 budget — in a Debug build.
+>
+> **The one real bug of the run** wasn't in generated game logic at all — it was destruction order: the sandbox scene's destructor freed its arena buffer in the destructor *body*, which runs **before** member destructors; the embedded arena's placement-new'd pool then tore down inside freed memory (access violation in 6 tests). Fix: reset the arena member first. Generated code respected the constitution; the integration seam with pre-existing code is where the crash lived — exactly what per-task `ctest` gates are for.
+
+---
+
+### 3.7a Seeing It Run — Visualization and Screenshots
+
+The 8-task decomposition produces a complete, tested game **that you cannot see**. For a workshop, add one final task: a sandbox scene (`scene_kind::orbital_arena`, modeled on the existing `particle_storm` scene) with a scripted 2-player autopilot, well/particle rendering, and a HUD panel showing per-player scores, match state, and winner.
+
+Countdown (tick 120) — neutral particle field, scores 0:
+
+![Orbital Arena — countdown, neutral 500-particle field](screenshots/orbital-arena-early.png)
+
+Game over (tick 1600) — P0 wins 102 : 80, particles tinted by owning well:
+
+![Orbital Arena — game over, P0 winner HUD](screenshots/orbital-arena-late.png)
+
+Run it yourself: `ea-sandbox --scene orbital --seed 42` (key `5` switches interactively; `--screenshot <relative-path> --warmup N` for captures).
+
+**Constraints that made this task honest:**
+
+- Autopilot inputs derive purely from the arena tick index — zero draws from the scene's existing rng, so **all pre-existing scene digests are byte-identical** (verified: rope digest at seed 42 unchanged before/after).
+- The orbital scene contributes its own digest (headless runs at the same seed produce identical traces — Article 10 at the app layer).
+- Rendering is float-boundary code (Article 5 allows it); game state stays in the deterministic core.
+
 ---
 
 ### 3.8 How Spec-Kit Prevents Scope Creep
@@ -1394,16 +1440,20 @@ If someone says "add networking," the response is: "Write a `/specify` for it. W
 
 **The constitution is the scope boundary.** Article 10 (Lockstep Replay) implies networking-readiness but does NOT require a network implementation. The spec explicitly states "replay" not "live multiplayer." Scope is bounded by what the constitution mandates.
 
+> **Field note — the constitution bites back in fun ways.** The first demo autopilot gave player 1 the exact *negation* of player 0's steering. Result: a permanent 495–495 sudden-death tie. Why? The arena implements Article 9 fairness **bit-exactly** — mirrored inputs are guaranteed to produce mirrored outcomes, so no leader could ever emerge. The "bug" was the constitution working perfectly; the fix was detuning the two players' steering frequencies. When a constitutional article is implemented as a hard invariant, even your demo script has to respect it.
+
 ---
 
 ### 3.9 Reflection and Key Takeaways
 
 | Insight                                                                       | Evidence                                               |
 | ----------------------------------------------------------------------------- | ------------------------------------------------------ |
-| "70% of the engine is reusable without modification"                          | Module mapping shows 4/6 subsystems unchanged          |
+| "70% of the engine is reusable without modification"                          | Field-verified: 6 of 7 subsystems consumed unchanged   |
 | "The new constitution adds game-specific rules without breaking engine rules" | Articles 1-6 inherited; 9-11 are additive              |
-| "Task count is proportional to actual new code, not total codebase size"      | 8 tasks for a complete game, because foundation exists |
+| "Task count is proportional to actual new code, not total codebase size"      | 20 test-first tasks for a complete game, because foundation exists |
 | "Spec-Kit makes the 'use existing code' decision explicit and documented"     | Plan shows module mapping table                        |
+| "Detailed contracts before implementation eliminate iteration"                | Field run: zero unplanned compile errors across all 20 tasks; every impl green on first build |
+| "The plan stage corrects the analysis stage"                                  | §3.2's constraint-solver mapping was wrong; `/speckit.plan` fixed it against real headers |
 
 ---
 
