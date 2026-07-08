@@ -106,6 +106,10 @@ struct cli_options {
         out = ea_sandbox::scene_kind::particle_storm;
         return true;
     }
+    if (v == "orbital" || v == "orbital_arena") {
+        out = ea_sandbox::scene_kind::orbital_arena;
+        return true;
+    }
     return false;
 }
 
@@ -136,11 +140,11 @@ struct cli_options {
 void print_usage() noexcept {
     std::fputs(
         "Usage: ea-sandbox [--headless --seed N --frames N --out PATH]\n"
-        "                  [--scene rope|pendulum|cloth|storm]\n"
+        "                  [--scene rope|pendulum|cloth|storm|orbital]\n"
         "                  [--screenshot PATH [--warmup N]]\n"
         "\n"
         "Interactive (default): opens a window. Controls:\n"
-        "  1 / 2 / 3 / 4   switch scene (rope / pendulum / cloth / storm)\n"
+        "  1 / 2 / 3 / 4 / 5  switch scene (rope / pendulum / cloth / storm / orbital)\n"
         "  Space           pause / resume\n"
         "  S               single-step (when paused)\n"
         "  R               reseed scene (same seed → identical digest)\n"
@@ -191,8 +195,9 @@ void print_usage() noexcept {
             opts.screenshot_warmup_frames = static_cast<int>(w);
         } else if (arg == "--scene" && i + 1 < argc) {
             if (!parse_scene(argv[++i], opts.scene)) {
-                std::fprintf(stderr,
-                             "ea-sandbox: invalid --scene value (rope|pendulum|cloth|storm)\n");
+                std::fprintf(
+                    stderr,
+                    "ea-sandbox: invalid --scene value (rope|pendulum|cloth|storm|orbital)\n");
                 return 2;
             }
         } else if (arg == "--debug") {

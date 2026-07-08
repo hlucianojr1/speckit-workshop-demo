@@ -161,6 +161,21 @@ float ui_scale(viewport vp) noexcept {
     return static_cast<float>(vp.width) / 1280.0f;
 }
 
+// Per-player colors for the orbital arena scene (render boundary, Feature 003).
+constexpr Color kPlayerColors[4] = {
+    Color{80, 190, 255, 255},   // P0 cyan
+    Color{255, 150, 60, 255},   // P1 orange
+    Color{120, 230, 120, 255},  // P2 green
+    Color{210, 120, 255, 255},  // P3 purple
+};
+
+// Horizontal world-to-screen scale (pixels per world unit) for radius rings.
+[[nodiscard]] float world_radius_px(double r, viewport vp) noexcept {
+    const Vector2 c = world_to_screen(0.0, 0.0, vp);
+    const Vector2 e = world_to_screen(r, 0.0, vp);
+    return e.x - c.x;
+}
+
 // Convenience: scale an integer layout value.
 int sc(int v, float s) noexcept {
     return static_cast<int>(static_cast<float>(v) * s + 0.5f);
@@ -290,6 +305,35 @@ void draw_hud(const scene& s,
     }
     draw_text_shadow(buf, sc(16, sc_), sc(98, sc_), sc(14, sc_), dg_col);
 
+    // Orbital arena match panel (Feature 003): per-player scores + match state.
+    if (const orbital_arena::arena* oa = s.orbital(); oa != nullptr) {
+        std::snprintf(buf,
+                      sizeof(buf),
+                      "match=%s  tick=%llu",
+                      ea_sandbox::orbital_match_state_name(oa->state()),
+                      static_cast<unsigned long long>(oa->current_tick()));
+        draw_text_shadow(buf, sc(16, sc_), sc(120, sc_), sc(16, sc_), Color{255, 240, 200, 255});
+        for (std::uint8_t p = 0; p < scene::kOrbitalPlayers; ++p) {
+            std::snprintf(buf,
+                          sizeof(buf),
+                          "P%u score: %u",
+                          static_cast<unsigned>(p),
+                          oa->score(p));
+            draw_text_shadow(
+                buf, sc(16, sc_), sc(142 + 20 * static_cast<int>(p), sc_), sc(16, sc_),
+                kPlayerColors[p]);
+        }
+        if (oa->state() == orbital_arena::match_state::game_over && oa->winner() >= 0) {
+            const std::int8_t w = oa->winner();
+            std::snprintf(buf, sizeof(buf), "WINNER: P%d", static_cast<int>(w));
+            draw_text_shadow(buf,
+                             sc(16, sc_),
+                             sc(142 + 20 * static_cast<int>(scene::kOrbitalPlayers), sc_),
+                             sc(20, sc_),
+                             kPlayerColors[w & 3]);
+        }
+    }
+
     // Top-right counts panel.
     char r_buf[160];
     std::snprintf(r_buf,
@@ -311,7 +355,7 @@ void draw_hud(const scene& s,
 
     // Bottom-left controls hint.
     const int hint_fs = sc(12, sc_);
-    DrawText("1/2/3/4 scene  Space pause  S step  R reseed  H hud  T trails  P perf-bomb",
+    DrawText("1/2/3/4/5 scene  Space pause  S step  R reseed  H hud  T trails  P perf-bomb",
              sc(16, sc_),
              vp.height - sc(42, sc_),
              hint_fs,
@@ -324,6 +368,88 @@ void draw_hud(const scene& s,
 }
 
 void draw_scene(const scene& s, viewport vp, bool show_trails) noexcept {
+    // Orbital arena scene (Feature 003): wells + arena particle field replace the
+    // rope/cloth/free-particle draws entirely (those containers are empty anyway).
+    if (const orbital_arena::arena* oa = s.orbital(); oa != nullptr) {
+        // Arena bounds square.
+        const double he = static_cast<double>(scene::kOrbitalHalfExtent);
+        const Vector2 tl = world_to_screen(-he, he, vp);
+        const Vector2 br = world_to_screen(he, -he, vp);
+        DrawRectangleLines(static_cast<int>(tl.x),
+                           static_cast<int>(tl.y),
+                           static_cast<int>(br.x - tl.x),
+                           static_cast<int>(br.y - tl.y),
+                           Color{90, 110, 160, 200});
+
+        const eastl::span<const orbital_arena::gravity_well> wells = oa->wells();
+
+        // Wells are placed on the countdown->playing transition; before that they sit
+        // uninitialized at the origin, so skip drawing/tinting until then.
+        const bool wells_placed = oa->state() == orbital_arena::match_state::playing ||
+                                  oa->state() == orbital_arena::match_state::game_over;
+
+        // Particle field, tinted by the nearest active well within influence radius.
+        for (const engine_demo::vfx::particle& p : oa->particles().live_particles()) {
+            const Vector2 sp = world_to_screen(static_cast<double>(p.position[0]),
+                                               static_cast<double>(p.position[1]),
+                                               vp);
+            Color c = Color{170, 180, 210, 200};  // unclaimed: neutral gray-blue
+            float best_d2 = 0.0f;
+            int best = -1;
+            for (std::size_t w = 0; wells_placed && w < wells.size(); ++w) {
+                if (!wells[w].active) {
+                    continue;
+                }
+                const float dx = p.position[0] - wells[w].position[0];
+                const float dy = p.position[1] - wells[w].position[1];
+                const float d2 = dx * dx + dy * dy;
+                const float infl = wells[w].influence_radius;
+                if (d2 < infl * infl && (best < 0 || d2 < best_d2)) {
+                    best = static_cast<int>(w);
+                    best_d2 = d2;
+                }
+            }
+            if (best >= 0) {
+                c = kPlayerColors[best & 3];
+                c.a = 230;
+            }
+            DrawCircleV(sp, 4.0F, Color{c.r, c.g, c.b, static_cast<unsigned char>(c.a / 4)});
+            DrawCircleV(sp, 2.0F, c);
+        }
+
+        // Gravity wells: player-colored core + capture ring + faint influence ring.
+        for (std::size_t w = 0; wells_placed && w < wells.size(); ++w) {
+            if (!wells[w].active) {
+                continue;
+            }
+            const Color pc = kPlayerColors[w & 3];
+            const Vector2 wp = world_to_screen(static_cast<double>(wells[w].position[0]),
+                                               static_cast<double>(wells[w].position[1]),
+                                               vp);
+            const float cap_px =
+                world_radius_px(static_cast<double>(wells[w].capture_radius), vp);
+            const float infl_px =
+                world_radius_px(static_cast<double>(wells[w].influence_radius), vp);
+            DrawCircleLines(static_cast<int>(wp.x),
+                            static_cast<int>(wp.y),
+                            infl_px,
+                            Color{pc.r, pc.g, pc.b, 45});
+            DrawCircleV(wp, cap_px * 2.5F, Color{pc.r, pc.g, pc.b, 40});
+            DrawCircleLines(
+                static_cast<int>(wp.x), static_cast<int>(wp.y), cap_px, pc);
+            DrawCircleV(wp, 6.0F, pc);
+            DrawCircleV(wp, 3.0F, Color{255, 255, 255, 230});
+            char tag[8];
+            std::snprintf(tag, sizeof(tag), "P%zu", w);
+            draw_text_shadow(tag,
+                             static_cast<int>(wp.x) + 10,
+                             static_cast<int>(wp.y) - 10,
+                             14,
+                             pc);
+        }
+        return;
+    }
+
     // Particle trails — velocity-coloured with tapering width.
     if (show_trails) {
         for (std::size_t i = 0; i < s.particle_count(); ++i) {
@@ -834,6 +960,11 @@ int run_interactive(std::uint64_t initial_seed,
                 s.switch_scene(scene_kind::particle_storm);
                 ++key_events;
                 telemetry::get().emit_event("scene", "switch", R"("to":"particle_storm")");
+            }
+            if (IsKeyPressed(KEY_FIVE)) {
+                s.switch_scene(scene_kind::orbital_arena);
+                ++key_events;
+                telemetry::get().emit_event("scene", "switch", R"("to":"orbital_arena")");
             }
             if (IsKeyPressed(KEY_SPACE)) {
                 paused = !paused;

@@ -5,6 +5,9 @@
 //   - pendulum_tower   : 4 chains of varying length, anchored across the top
 //   - cloth            : 12 x 8 grid with structural + shear constraints
 //   - particle_storm   : 500 free particles with two orbital gravity wells
+//   - orbital_arena    : Feature 003 — embedded orbital_arena::arena match driven
+//                        by deterministic scripted autopilot inputs (render-only
+//                        for every OTHER scene's digest; contributes its own)
 //
 // Owns:
 //   - allocator (arena) for all EASTL containers in this translation unit
@@ -25,6 +28,9 @@
 #include "engine_demo/sim/game_loop.h"
 #include "engine_demo/sim/rng.h"
 #include "engine_demo/vfx/emitter.h"
+#include "orbital_arena/arena.h"
+
+#include <EASTL/optional.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -37,9 +43,13 @@ enum class scene_kind : std::uint8_t {
     pendulum_tower = 1,
     cloth = 2,
     particle_storm = 3,
+    orbital_arena = 4,
 };
 
 [[nodiscard]] const char* scene_kind_name(scene_kind k) noexcept;
+
+// HUD-friendly name for an orbital_arena match state (render boundary).
+[[nodiscard]] const char* orbital_match_state_name(orbital_arena::match_state s) noexcept;
 
 // Storage for verlet integration: previous-frame positions per body id,
 // indexed by index into m_body_ids.
@@ -66,7 +76,10 @@ struct trail_point {
 
 class [[nodiscard]] scene {
    public:
-    static constexpr std::size_t kArenaBytes = 4u << 20;  // 4 MiB
+    // 8 MiB: headroom for the bump allocator across repeated scene switches — each
+    // rebuild leaks its old solver/vfx/orbital allocations by design (linear arena),
+    // and the orbital_arena scene adds ~260 KiB per rebuild (input log dominates).
+    static constexpr std::size_t kArenaBytes = 8u << 20;
     static constexpr std::size_t kRopeNodes = 24;
     static constexpr std::size_t kPendulumChains = 4;
     static constexpr std::size_t kClothCols = 12;
@@ -88,6 +101,13 @@ class [[nodiscard]] scene {
     // XOR-folded into m_seed for the VFX emitter's seed; never drawn from m_rng, so VFX
     // activity never perturbs the scene's existing rng draw order (research.md §3).
     static constexpr std::uint64_t kVfxSeedSalt = 0x564658u;
+
+    // Orbital Arena scene (Feature 003, T019). The embedded arena owns its own salted
+    // rng streams seeded from m_seed, and its scripted inputs derive purely from the
+    // arena tick index — the scene's m_rng is never drawn from, so existing scenes'
+    // rng draw order (and their golden digests) stay byte-identical.
+    static constexpr std::uint8_t kOrbitalPlayers = 2;
+    static constexpr float kOrbitalHalfExtent = 2.0f;  // fits the [-3,3]x[-2,2] view
 
     explicit scene(std::uint64_t seed);
     ~scene();
@@ -176,6 +196,13 @@ class [[nodiscard]] scene {
     // (no allocation) at the scene level; not used by production code.
     [[nodiscard]] std::size_t arena_bytes_used() const noexcept { return m_alloc.bytes_used(); }
 
+    // Embedded Orbital Arena match (Feature 003). Non-null only while the current
+    // scene kind is orbital_arena; renderers/HUD/tests read match state, scores,
+    // wells, and the particle pool through this single accessor.
+    [[nodiscard]] const orbital_arena::arena* orbital() const noexcept {
+        return m_orbital.has_value() ? &*m_orbital : nullptr;
+    }
+
    private:
     void rebuild_scene(std::uint64_t seed) noexcept;
     void substep(double dt) noexcept;
@@ -185,6 +212,7 @@ class [[nodiscard]] scene {
     void build_pendulum_tower() noexcept;
     void build_cloth() noexcept;
     void build_particle_storm() noexcept;
+    void build_orbital_arena() noexcept;
 
     void reset_solver() noexcept;
     void reset_vfx() noexcept;
@@ -218,6 +246,9 @@ class [[nodiscard]] scene {
     // repositioned per event via emitter::set_shape rather than reconstructing the emitter.
     engine_demo::vfx::particle_pool m_vfx_pool;
     engine_demo::vfx::emitter m_vfx_emitter;
+
+    // Orbital Arena match (Feature 003). Engaged only for scene_kind::orbital_arena.
+    eastl::optional<orbital_arena::arena> m_orbital;
 
     // Held-node drag state. m_held_index >= m_body_ids.size() => none held.
     std::size_t m_held_index{static_cast<std::size_t>(-1)};
