@@ -189,7 +189,7 @@ their stated tick durations, all effects end at `game_over` (spec.md US3 Indepen
 
 ### Tests for User Story 3 (write first, MUST fail)
 
-- [ ] T012 [P] [US3] Write failing GTests for power-ups in
+- [x] T012 [P] [US3] Write failing GTests for power-ups in
       `tests/orbital_arena/test_powerup.cpp` (~90 lines): spawn every
       `kPowerupSpawnIntervalTicks = 600` during `playing` only, position and kind drawn
       from the arena-owned `sim::rng` in fixed order (FR-009/FR-019, research.md D6);
@@ -204,7 +204,7 @@ their stated tick durations, all effects end at `game_over` (spec.md US3 Indepen
 
 ### Implementation for User Story 3
 
-- [ ] T013 [US3] Implement power-up module in `include/orbital_arena/powerup.h` +
+- [x] T013 [US3] Implement power-up module in `include/orbital_arena/powerup.h` +
       `src/orbital_arena/powerup.cpp` (~130 lines): `powerup_kind` enum, fixed
       `pickup[kMaxFieldPickups]` slot array (no allocation, Article 6), `active_effect`
       slots per player with integer `remaining_ticks` (research.md D4), spawn scheduler
