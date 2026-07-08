@@ -57,4 +57,17 @@ void award_capture(score_table& t, std::uint8_t player,
                                              score_table& table,
                                              const bool double_points[kMaxPlayers]) noexcept;
 
+// FR-006/FR-008 evaluated once per tick AFTER all captures resolve:
+// - exactly one player >= kWinScore            -> latches and returns that index
+// - >=2 players >= kWinScore this evaluation   -> sets t.sudden_death, returns -1
+// - sudden_death && exactly one contender (score >= kWinScore) captured this tick
+//                                              -> latches and returns that index
+// `scored_this_tick` bitmask: bit i set iff player i captured >=1 particle this tick.
+// Once a winner is latched, re-evaluation returns it unchanged (score freeze).
+[[nodiscard]] std::int8_t evaluate_win(score_table& t, std::uint8_t player_count,
+                                       std::uint32_t scored_this_tick) noexcept;
+
+// game_over -> lobby (FR-012): zero scores, clear winner and sudden-death latches.
+void reset_scores(score_table& t) noexcept;
+
 }  // namespace orbital_arena

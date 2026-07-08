@@ -144,7 +144,7 @@ Independent Test).
 
 ### Tests for User Story 2 (write first, MUST fail)
 
-- [ ] T008 [P] [US2] Extend `tests/orbital_arena/test_scoring.cpp` with failing win-rule
+- [x] T008 [P] [US2] Extend `tests/orbital_arena/test_scoring.cpp` with failing win-rule
       GTests (~50 lines): score reaching exactly 100 and overshooting past 100 both end
       the match that tick with that player as winner (FR-006, US2 sc.3); two players
       reaching ≥100 on the same tick → `sudden_death = true`, next sole-capture tick
@@ -163,7 +163,7 @@ Independent Test).
 
 ### Implementation for User Story 2
 
-- [ ] T009 [US2] Extend `include/orbital_arena/scoring.h` + `src/orbital_arena/scoring.cpp`
+- [x] T009 [US2] Extend `include/orbital_arena/scoring.h` + `src/orbital_arena/scoring.cpp`
       with win detection (~60 lines): `check_win_condition()` evaluating FR-006/FR-008
       after each tick's captures, sudden-death entry/resolution, winner latching, score
       freeze. All T008 tests green. (depends on T007, T008)

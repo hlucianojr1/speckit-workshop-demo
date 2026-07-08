@@ -69,4 +69,57 @@ std::uint32_t resolve_captures(eastl::span<const gravity_well> wells,
     return scored_mask;
 }
 
+std::int8_t evaluate_win(score_table& t, std::uint8_t player_count,
+                         std::uint32_t scored_this_tick) noexcept {
+    if (t.winner != -1) {
+        return t.winner;  // already decided; scores are frozen
+    }
+
+    const std::uint8_t count = player_count < kMaxPlayers ? player_count : kMaxPlayers;
+
+    if (t.sudden_death) {
+        // FR-008: the next tick where exactly one contender captures decides the match.
+        std::int8_t sole_scorer = -1;
+        std::uint8_t scoring_contenders = 0;
+        for (std::uint8_t i = 0; i < count; ++i) {
+            const bool contender = t.scores[i] >= kWinScore;
+            const bool scored = (scored_this_tick & (1u << i)) != 0;
+            if (contender && scored) {
+                ++scoring_contenders;
+                sole_scorer = static_cast<std::int8_t>(i);
+            }
+        }
+        if (scoring_contenders == 1) {
+            t.winner = sole_scorer;
+            return t.winner;
+        }
+        return -1;  // zero or multiple contenders scored: sudden death continues
+    }
+
+    std::int8_t crosser = -1;
+    std::uint8_t crossers = 0;
+    for (std::uint8_t i = 0; i < count; ++i) {
+        if (t.scores[i] >= kWinScore) {
+            ++crossers;
+            crosser = static_cast<std::int8_t>(i);
+        }
+    }
+    if (crossers == 1) {
+        t.winner = crosser;  // FR-006: match ends this tick
+        return t.winner;
+    }
+    if (crossers >= 2) {
+        t.sudden_death = true;  // FR-008: simultaneous crossing
+    }
+    return -1;
+}
+
+void reset_scores(score_table& t) noexcept {
+    for (std::uint32_t& score : t.scores) {
+        score = 0;
+    }
+    t.winner = -1;
+    t.sudden_death = false;
+}
+
 }  // namespace orbital_arena
