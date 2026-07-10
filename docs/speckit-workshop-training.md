@@ -61,6 +61,7 @@
 - [Appendix A: Spec-Kit Quick Reference Card](#appendix-a-spec-kit-quick-reference-card)
 - [Appendix B: Copilot CLI Command Reference](#appendix-b-copilot-cli-command-reference)
 - [Appendix C: Custom Instructions File Templates](#appendix-c-custom-instructions-file-templates)
+- [Appendix D: Rust Game-Dev Research and Guidelines Prompt Series](#appendix-d-rust-game-dev-research-and-guidelines-prompt-series)
 - [Self-Study Lab: Visualize the VFX Subsystem in the Sandbox](#self-study-lab-visualize-the-vfx-subsystem-in-the-sandbox)
   - [S.1 Mission and Context](#s1-mission-and-context)
   - [S.2 Prerequisites](#s2-prerequisites)
@@ -1594,7 +1595,60 @@ Maximum entity count is fixed at construction (default: 4096). No dynamic resizi
 
 ### 4.3 Phase B: Target Constitution (Rust/Bevy)
 
-**The target constitution replaces C++-specific rules with Rust/Bevy idioms while preserving behavioral guarantees:**
+The target constitution is **generated, not hand-written**. Before running the prompt below,
+complete the research and consolidation prompt series in
+[Appendix D](#appendix-d-rust-game-dev-research-and-guidelines-prompt-series) — it produces
+`specs/transform/rust-guidelines.md`, the consolidated Rust game-development guidelines that
+carry EASTL's *concepts* (explicit memory ownership, fixed capacity, no hidden allocation,
+allocation observability) into Rust idioms without attempting a 1:1 EASTL→Rust mapping.
+
+#### 4.3.1 Constitution Generation Prompt
+
+**Prompt to Copilot (VS Code Agent Mode or Copilot CLI):**
+
+```text
+/speckit.constitution
+
+Generate the target constitution for the Rust/Bevy port of engine_demo and write it
+to specs/transform/rust-constitution.md.
+
+Inputs — read ALL of these before drafting a single article:
+1. specs/transform/rust-guidelines.md — consolidated Rust game-dev guidelines
+   (produced by the Appendix D prompt series)
+2. specs/transform/*.spec.md — the language-agnostic behavioral specs from Phase A
+3. specs/constitution.md — the C++ constitution, for the list of behavioral
+   guarantees that must survive the language change
+
+Rules:
+- Preserve behavioral GUARANTEES (determinism, frame budget, test-first, HITL
+  gates), never C++ MECHANISMS. If a C++ article exists only to work around a C++
+  limitation (e.g. "EASTL-first" exists because std:: containers hide allocation),
+  replace it with the Rust-idiomatic rule that achieves the same guarantee, or
+  drop it with a one-line justification.
+- Where the guidelines borrow an EASTL concept, express it in Rust idioms — do
+  NOT invent EASTL-shaped APIs in Rust. The goal is a solid foundation for Rust
+  game development, not a port of EASTL.
+- Every article must be enforceable: name the tool or test pattern that enforces
+  it (clippy lint, grep gate in CI, #[test] pattern, cargo deny, headless App
+  integration test).
+- Tag every article as Inherited / Adapted / New with a one-line rationale.
+- 8–12 articles maximum. List any guideline you deliberately did NOT promote
+  into the constitution, and why.
+
+Gate (HITL): I will review each article against the Phase C pattern-mapping table
+before this constitution is committed. Do not proceed to /speckit.plan.
+```
+
+**Review checklist before accepting the generated constitution:**
+
+- [ ] Every C++ behavioral guarantee is covered by exactly one Rust article (no orphans, no duplicates)
+- [ ] No article prescribes an EASTL mechanism dressed in Rust syntax (e.g. a custom allocator trait where `Vec::with_capacity()` + a zero-alloc test gives the same guarantee)
+- [ ] Every article names its enforcement tool — an unenforceable article is a wish, not a law
+- [ ] The Inherited/Adapted/New tags match your expectations from the §4.3.2 reference below
+
+#### 4.3.2 Reference Constitution
+
+**A well-generated constitution should land close to this reference — it replaces C++-specific rules with Rust/Bevy idioms while preserving behavioral guarantees:**
 
 ```markdown
 # engine_demo (Rust/Bevy) — Constitution
@@ -2223,6 +2277,141 @@ ctest --preset default-debug --output-on-failure
 
 If you draft `std::vector` or `try`/`catch`, STOP and re-read this file.
 ````
+
+---
+
+## Appendix D: Rust Game-Dev Research and Guidelines Prompt Series
+
+This appendix supports [§4.3 Phase B](#43-phase-b-target-constitution-rustbevy). It is a
+three-step prompt pipeline: **research → consolidate → generate**. Steps D.1 and D.2 live
+here; the final constitution-generation prompt (step D.3) is part of the training body at
+§4.3.1.
+
+```text
+┌────────────────────┐     ┌──────────────────────────┐     ┌───────────────────────────┐
+│  D.1 Research      │────▶│  D.2 Consolidation       │────▶│  D.3 Constitution (§4.3.1)│
+│  5 focused prompts │     │  EASTL concepts + merge  │     │  /speckit.constitution    │
+│  research/*.md     │     │  rust-guidelines.md      │     │  rust-constitution.md     │
+└────────────────────┘     └──────────────────────────┘     └───────────────────────────┘
+```
+
+All artifacts land under `specs/transform/`. Run the prompts in VS Code Agent Mode, or
+batch them with `copilot -p` (see Appendix B) — each research prompt is independent, so
+they parallelize cleanly.
+
+### D.1 Research Prompt Series
+
+One prompt per topic. Each produces a short, evidence-backed research note — demand
+sources and trade-offs, not just recommendations.
+
+**R1 — Architecture and ECS:**
+
+```text
+Research current best practices for structuring game code in Rust with an ECS
+(Bevy in particular). Cover: Components vs Resources vs Events decision rules;
+system ordering and schedules (Update vs FixedUpdate); plugin decomposition;
+when NOT to use ECS. For each practice, state the failure mode it prevents.
+Cite sources (Bevy book/docs, established community references). Write the note
+to specs/transform/research/r1-architecture.md. Do not write any Rust code.
+```
+
+**R2 — Memory and Allocation:**
+
+```text
+Research memory-management best practices for real-time Rust games. Cover:
+pre-allocation patterns (Vec::with_capacity, object pools, arenas — bumpalo and
+friends); how to detect and prevent per-frame heap allocation; fixed-capacity
+collection crates (arrayvec, smallvec, heapless) and their trade-offs; when
+Rust's ownership model makes a C++-style custom allocator unnecessary, and the
+rare cases where it doesn't. Write to specs/transform/research/r2-memory.md.
+```
+
+**R3 — Determinism:**
+
+```text
+Research determinism in Rust game simulations. Cover: seeded RNG choices (rand's
+StdRng vs explicit algorithm crates and their stability-across-versions
+guarantees); f32 vs f64 accumulators; sources of nondeterministic iteration order
+(HashMap, ECS query order, parallel system execution) and their mitigations;
+floating-point reproducibility across platforms. Write to
+specs/transform/research/r3-determinism.md.
+```
+
+**R4 — Error Handling and API Design:**
+
+```text
+Research error-handling and public-API best practices for Rust game code. Cover:
+panic policy for real-time loops (panic = dropped frame or crashed process);
+Result/Option patterns vs C++-style status enums; #[must_use] as the analogue of
+[[nodiscard]]; unsafe policy and // SAFETY: conventions; clippy lint tiers worth
+enforcing in CI. Write to specs/transform/research/r4-errors-api.md.
+```
+
+**R5 — Testing and Tooling:**
+
+```text
+Research testing and CI practices for Rust games. Cover: headless Bevy App tests
+(MinimalPlugins) for system-level integration; deterministic replay tests; frame
+budget/perf assertions in tests vs criterion benchmarks; cargo clippy/fmt/deny in
+CI; detecting per-frame allocations in tests. Write to
+specs/transform/research/r5-testing.md.
+```
+
+### D.2 Consolidation Prompts
+
+**C1 — Extract EASTL's design concepts (not its APIs):**
+
+```text
+Read specs/constitution.md, include/engine_demo/allocator.h, and the EASTL usage
+across include/ and src/. Extract the DESIGN CONCEPTS that EASTL brings to this
+codebase, stated language-neutrally — e.g.: explicit memory ownership; allocation
+is visible and budgeted, never hidden; fixed capacity decided up front; container
+behavior is deterministic; allocation observability (bytes_used is queryable).
+For each concept: why it matters for games, and what breaks without it.
+Explicitly EXCLUDE EASTL mechanics that are C++ workarounds (allocator template
+parameters, fixed_vector overflow flags). Write to
+specs/transform/research/c1-eastl-concepts.md.
+```
+
+**C2 — Consolidate into proposed guidelines:**
+
+```text
+Read all of specs/transform/research/*.md. Consolidate them into a single
+proposed guidelines document: specs/transform/rust-guidelines.md.
+
+Goal: a solid foundation for Rust game development that HONORS the EASTL
+concepts from c1-eastl-concepts.md — NOT a 1:1 mapping of EASTL to Rust. Where
+Rust's ownership model already delivers a concept, say so and stop; where it
+doesn't (e.g. hidden Vec growth in a frame loop), propose the Rust-idiomatic
+practice that restores the guarantee.
+
+Format: 10–15 numbered guidelines. Each has: the guideline (one sentence), the
+EASTL concept or research note it derives from, the Rust idiom that implements
+it, and how to enforce it (lint/test/CI). Flag conflicts between research notes
+rather than silently resolving them — conflicts are HITL review items.
+
+Gate (HITL): I will review and edit these guidelines before they feed the
+constitution prompt in §4.3.1.
+```
+
+### D.3 Constitution Generation
+
+With `rust-guidelines.md` reviewed and approved, run the constitution-generation prompt in
+[§4.3.1](#43-phase-b-target-constitution-rustbevy) — that step is part of the training
+proper, because generating (and gating) a constitution from researched guidelines is the
+repeatable skill; the research pipeline in this appendix is the reusable scaffolding.
+
+**Batch variant (Copilot CLI, requires authentication):**
+
+```bash
+# D.1 research prompts are independent — run them in parallel shells or /fleet
+copilot -p "<R1 prompt>" --allow-tool='write' --allow-tool='shell(cat)'
+copilot -p "<R2 prompt>" --allow-tool='write' --allow-tool='shell(cat)'
+# ... R3–R5, then sequentially:
+copilot -p "<C1 prompt>" --allow-tool='write' --allow-tool='shell(cat)'
+copilot -p "<C2 prompt>" --allow-tool='write' --allow-tool='shell(cat)'
+# D.3 runs interactively — the HITL gate on the constitution is the point.
+```
 
 ---
 
