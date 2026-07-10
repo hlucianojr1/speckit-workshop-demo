@@ -53,6 +53,7 @@
   - [4.1 Session Overview](#41-session-overview)
   - [4.2 Phase A: Reverse-Specification](#42-phase-a-reverse-specification)
   - [4.2a Phase A2 (Extension): Reverse-Specifying the Orbital Arena Game Layer](#42a-phase-a2-extension-reverse-specifying-the-orbital-arena-game-layer)
+  - [4.2b Phase A3 (Further Extension): HUD Parity and Interactive Control](#42b-phase-a3-further-extension-hud-parity-and-interactive-control)
   - [4.3 Phase B: Target Constitution (Rust/Bevy)](#43-phase-b-target-constitution-rustbevy)
   - [4.4 Phase C: Transformation Plan](#44-phase-c-transformation-plan)
   - [4.5 Phase D: Tasks and Implementation](#45-phase-d-tasks-and-implementation)
@@ -1697,6 +1698,95 @@ Phase A's reverse-specs. A reasonable scope for the extension:
       an attracted particle field, and a score readout
 - [ ] The original constraint-solver scene/tests from §4.2–§4.5 still build and pass
       unmodified
+
+---
+
+### 4.2b Phase A3 (Further Extension): HUD Parity and Interactive Control
+
+**Goal:** Close the remaining visual gap between the Rust port and the reference C++
+screenshots — the on-screen telemetry HUD and interactive mouse control — surfaced by
+directly comparing running screenshots side by side after completing §4.2a. This is the
+workshop's second worked example of **"compare the actual output to the reference, then
+identify what spec is missing"** rather than declaring victory once *some* screenshot
+exists.
+
+**What comparison revealed:** §4.2a's Rust screenshots showed wells, particles, and a bare
+score readout — but the reference C++ sandbox (`apps/sandbox/app.cpp`) also renders a rich
+telemetry HUD (seed/tick/frame-time with three-tier color coding, a state-digest line, a
+top-right counts panel, a bottom control-hint legend, and a frame-budget histogram widget)
+on **every** scene, plus a match panel (score + winner) specifically for the orbital arena
+scene. None of that was reverse-specced by Phase A or Phase A2 — both of those phases
+targeted *simulation* logic, not *display* logic. That is a real, previously-undocumented
+gap, found only by looking at the actual pixels.
+
+**Prompt to Copilot (VS Code Agent Mode):**
+
+```text
+/speckit.specify (reverse)
+
+Analyze apps/sandbox/app.cpp's draw_hud and draw_histogram functions (NOT scene.cpp —
+this is display code, not simulation logic). Extract a language-agnostic specification
+for the on-screen telemetry HUD:
+
+1. What information is displayed, in what screen regions (top-left telemetry column,
+   top-right counts panel, bottom-left control hints, bottom-right frame-budget widget)
+2. The three-tier color-coding pattern applied to time-budget metrics (normal / warning /
+   critical) and which metrics use it
+3. The orbital-arena-specific match panel (per-player scores, winner banner) and when it
+   appears
+4. What is explicitly OUT of scope for a port (exact pixel layout, specific drawing API
+   calls, telemetry event logging)
+
+Output as a spec document with no C++ syntax, no raylib references — content and the
+three-tier color GUARANTEE, not exact pixel positions.
+```
+
+**Expected output:** `specs/transform/sandbox-hud.spec.md`.
+
+**The interactive-control gap is different in kind, not just in coverage.** Checking the
+reference C++ orbital arena scene's actual input handling (`scene.cpp`'s
+`make_orbital_inputs`) shows both players are driven by a **scripted sinusoidal
+autopilot** — the reference implementation has no mouse-driven well control either. What
+the base sandbox DOES have is a generic, scene-agnostic "click and drag the nearest
+object" mechanic (`app.cpp`'s `grab_nearest_rope_node` / `drag_held_node`), used for
+dragging rope/pendulum/cloth bodies. Wanting the Rust *default scene* to be interactively
+explorable — "click on the well and move it around" — is therefore a **new capability**,
+not a reverse-spec of anything that already exists. Write it as a spec anyway, tagged
+explicitly as New, so its origin is as auditable as every reverse-specced subsystem:
+
+```text
+Design a NEW specification (not a reverse-spec — state this explicitly) adapting the
+sandbox's generic "press near an object, drag it to the cursor" interaction pattern to
+one gravity well in the Rust port, so the default scene is interactively explorable.
+Define: grab radius, what happens while held (position follows cursor, clamped to arena
+bounds), what happens on release (resumes normal driving logic), and failure-mode
+guarantees (missing window/camera/cursor must never panic). Output to
+specs/transform/orbital-arena-interactive-control.spec.md.
+```
+
+**Extending the Rust implementation:**
+
+- HUD: recreate the CONTENT of `sandbox-hud.spec.md` using the target UI framework's
+  native widgets (Bevy: `Text`/`Node` UI, not the reference's immediate-mode drawing
+  calls) — the spec's §5 explicitly descopes pixel-perfect layout so the port isn't
+  fighting the wrong constraint.
+- Interactive control: a small system reading mouse position/buttons, converting screen
+  space to world space via the engine's own camera API (never hand-rolled), gated by a
+  small state resource so the driving system (whatever moves wells normally) can skip its
+  own update for the well currently being dragged.
+
+**Acceptance gate:**
+
+- [ ] Every color-coded metric in the HUD spec has a corresponding three-tier check in
+      the Rust implementation (not just "some color changes somewhere")
+- [ ] The interactive-control spec is tagged **New** in its own text, not silently
+      presented as ported from a C++ header that doesn't have this behavior
+- [ ] Cursor/window/camera queries that can legitimately be absent (no primary window, no
+      camera, cursor outside the window) are handled without `unwrap()`/panic (Article I)
+- [ ] `cargo test` covers the interaction's PURE logic (grab-radius check, position/
+      velocity update, bounds clamping) as unit tests — the ECS system that wires mouse
+      input to that logic is glue code and, consistent with the reference C++ app's own
+      input-handling layer, is verified by manual/visual testing, not GTest/`#[test]`
 
 ---
 

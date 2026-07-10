@@ -7,6 +7,7 @@
 //! power-ups, no input replay log, no snapshot/state-hash. The scene runs directly in an
 //! always-"playing" state so wells + capture + scoring can be demonstrated on their own.
 
+pub mod drag;
 pub mod scoring;
 pub mod visuals;
 pub mod well;
@@ -47,12 +48,23 @@ pub struct FieldParticle {
 #[derive(Resource, Debug, Default)]
 pub struct GameTick(pub u64);
 
+/// Whether the interactive well (player 0) is currently being mouse-dragged
+/// (specs/transform/orbital-arena-interactive-control.spec.md §2) — read by `drive_wells`
+/// to skip its own autopilot update while a drag is in progress, written by
+/// `drag::drag_well_system` (only present when `GameVisualsPlugin`/`WellDragPlugin` are
+/// added, i.e. never in headless tests).
+#[derive(Resource, Debug, Default)]
+pub struct WellDragState {
+    pub dragging: bool,
+}
+
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(GameTick::default())
             .insert_resource(ScoreTable::default())
+            .insert_resource(WellDragState::default())
             .add_systems(Startup, spawn_wells_and_field.after(insert_rng))
             .add_systems(
                 FixedUpdate,
@@ -94,9 +106,18 @@ fn spawn_wells_and_field(mut commands: Commands, mut rng: ResMut<DeterministicRn
 /// Deterministic patrol pattern (pure function of the tick counter — no RNG, no wall
 /// clock) standing in for real player steering input (orbital-arena-gravity-well.spec.md
 /// §3.3's `step` — simplified here since there is no interactive input to record).
-fn drive_wells(mut tick: ResMut<GameTick>, mut wells: Query<&mut GravityWell>) {
+/// Skips the interactive well (player 0) while it is being mouse-dragged
+/// (orbital-arena-interactive-control.spec.md §2).
+fn drive_wells(
+    mut tick: ResMut<GameTick>,
+    drag_state: Res<WellDragState>,
+    mut wells: Query<&mut GravityWell>,
+) {
     tick.0 += 1;
     for mut well in &mut wells {
+        if drag_state.dragging && well.player_index == 0 {
+            continue;
+        }
         let phase = well.player_index as f64 * std::f64::consts::PI;
         let angle = tick.0 as f64 * WELL_ANGULAR_SPEED + phase;
         let target = DVec2::new(angle.cos(), angle.sin()) * WELL_ORBIT_RADIUS;

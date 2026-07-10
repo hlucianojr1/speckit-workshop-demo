@@ -10,6 +10,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use orbital_arena_rs::config::{RunMode, SimConfig};
 use orbital_arena_rs::constraint::PhysicsPlugin;
 use orbital_arena_rs::frame_budget::FrameBudgetPlugin;
+use orbital_arena_rs::game::drag::WellDragPlugin;
 use orbital_arena_rs::game::visuals::GameVisualsPlugin;
 use orbital_arena_rs::game::GamePlugin;
 use orbital_arena_rs::rng::RngPlugin;
@@ -98,7 +99,9 @@ fn main() {
 
     match scene {
         Scene::Arena => {
-            app.add_plugins(GamePlugin).add_plugins(GameVisualsPlugin);
+            app.add_plugins(GamePlugin)
+                .add_plugins(GameVisualsPlugin)
+                .add_plugins(WellDragPlugin);
         }
         Scene::Constraint => {
             app.add_plugins(PhysicsPlugin).add_plugins(VisualsPlugin);
@@ -109,5 +112,14 @@ fn main() {
         app.add_plugins(ScreenshotPlugin);
     }
 
+    app.add_systems(Update, exit_on_escape);
+
     app.run();
+}
+
+/// Parity with the reference sandbox's "Esc quit" control hint (sandbox-hud.spec.md §2).
+fn exit_on_escape(keys: Res<ButtonInput<KeyCode>>, mut exit: EventWriter<AppExit>) {
+    if keys.just_pressed(KeyCode::Escape) {
+        exit.write(AppExit::Success);
+    }
 }
