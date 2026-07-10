@@ -42,15 +42,17 @@
   - [3.1 Session Overview](#31-session-overview)
   - [3.2 Analyzing the Existing Engine](#32-analyzing-the-existing-engine)
   - [3.3 Writing a New Constitution](#33-writing-a-new-constitution)
-  - [3.4 /specify — New Game Features](#34-specify--new-game-features)
-  - [3.5 /plan — Mapping Foundation to New Architecture](#35-plan--mapping-foundation-to-new-architecture)
-  - [3.6 /tasks — Delta Decomposition](#36-tasks--delta-decomposition)
-  - [3.7 /implement — Building on the Foundation](#37-implement--building-on-the-foundation)
+  - [3.4 /speckit.specify — New Game Features](#34-speckitspecify--new-game-features)
+  - [3.5 /speckit.plan — Mapping Foundation to New Architecture](#35-speckitplan--mapping-foundation-to-new-architecture)
+  - [3.6 /speckit.tasks — Delta Decomposition](#36-speckittasks--delta-decomposition)
+  - [3.7 /speckit.implement — Building on the Foundation](#37-speckitimplement--building-on-the-foundation)
+  - [3.7a Seeing It Run — Visualization and Screenshots](#37a-seeing-it-run--visualization-and-screenshots)
   - [3.8 How Spec-Kit Prevents Scope Creep](#38-how-spec-kit-prevents-scope-creep)
   - [3.9 Reflection and Key Takeaways](#39-reflection-and-key-takeaways)
 - [Part 4: Use Case — Cross-Language Game Transformation](#part-4-use-case--cross-language-game-transformation)
   - [4.1 Session Overview](#41-session-overview)
   - [4.2 Phase A: Reverse-Specification](#42-phase-a-reverse-specification)
+  - [4.2a Agent Loop — Batching the Remaining Reverse-Specs](#42a-agent-loop--batching-the-remaining-reverse-specs)
   - [4.3 Phase B: Target Constitution (Rust/Bevy)](#43-phase-b-target-constitution-rustbevy)
   - [4.4 Phase C: Transformation Plan](#44-phase-c-transformation-plan)
   - [4.5 Phase D: Tasks and Implementation](#45-phase-d-tasks-and-implementation)
@@ -60,6 +62,7 @@
 - [Appendix A: Spec-Kit Quick Reference Card](#appendix-a-spec-kit-quick-reference-card)
 - [Appendix B: Copilot CLI Command Reference](#appendix-b-copilot-cli-command-reference)
 - [Appendix C: Custom Instructions File Templates](#appendix-c-custom-instructions-file-templates)
+- [Appendix D: Rust Game-Dev Research and Guidelines Prompt Series](#appendix-d-rust-game-dev-research-and-guidelines-prompt-series)
 - [Self-Study Lab: Visualize the VFX Subsystem in the Sandbox](#self-study-lab-visualize-the-vfx-subsystem-in-the-sandbox)
   - [S.1 Mission and Context](#s1-mission-and-context)
   - [S.2 Prerequisites](#s2-prerequisites)
@@ -1074,6 +1077,10 @@ string_view interop, tests + stretch goal wiring)
 - Completed Parts 0–2 (understand the 5-stage flow and practiced it hands-on)
 - Familiarity with engine_demo subsystems (ECS, physics, RNG, frame budget)
 - Understanding of the constitutional model
+- **Features 001 (Particle VFX) and 002 (Sandbox VFX Visualization) merged into your working branch** — Part 3 reuses `vfx::emitter`/`vfx::particle_pool` as the particle field, and the sandbox scene infrastructure for visualization. On a fresh clone, merge them first and confirm a green `ctest` baseline before starting.
+
+> **Field-tested (2026-07-07):** this entire Part was executed end-to-end on branch `part3-orbital-arena` (feature branch `006-orbital-arena`, artifacts in `specs/003-orbital-arena/`). Callouts marked **Field note** below record where reality differed from the original script. Net result: a complete, playable Orbital Arena — 20 tasks, 148 tests, zero unplanned compile errors, tick cost 0.08 ms against the 16.67 ms Article 6 budget.
+
 
 **Value Proposition:** Starting a new game without Spec-Kit leads to "blank page paralysis" followed by ad-hoc decisions that conflict with the engine's design principles. Spec-Kit forces you to explicitly state what you're building BEFORE you build it, ensuring the new game inherits the engine's architectural strengths.
 
@@ -1087,12 +1094,15 @@ string_view interop, tests + stretch goal wiring)
 | ---------------------------- | --------------- | ---------------------------------------------------- |
 | `engine_demo::allocator`     | ✅ Yes          | None — arena allocator is game-agnostic              |
 | `ecs::world`                 | ✅ Yes          | None — generational handles work for any entity type |
-| `physics::constraint_solver` | ⚠️ Partial      | Need to add "gravity well" as a new force type       |
+| `physics::constraint_solver` | ✅ Yes          | None — it stays a verlet body/constraint system      |
+| `vfx::particle_pool/emitter` | ✅ Yes          | Reused as the free-particle field; gravity wells apply forces over its spans |
 | `sim::game_loop`             | ✅ Yes          | None — fixed-step accumulator is universal           |
 | `sim::rng`                   | ✅ Yes          | None — seeded RNG for replay works for competitive   |
 | `frame_budget`               | ✅ Yes          | None — timing telemetry is game-agnostic             |
 | Sandbox scenes               | ❌ No           | Replace with Orbital Arena scenes                    |
 | Sandbox HUD                  | ⚠️ Partial      | Replace HUD content, keep rendering infrastructure   |
+
+> **Field note:** an earlier draft of this table mapped gravity wells onto `physics::constraint_solver` ("add a new force type"). The real `/speckit.plan` run corrected this: `constraint_solver` is a verlet **body/constraint** system, while the free-floating particles actually live in `vfx::particle_pool`. Gravity wells became a **new module** (`orbital_arena::gravity_well`) that applies radial forces over particle-pool spans — the same pattern the sandbox's `particle_storm` scene already uses. Cataloging is a hypothesis; the plan stage is where Copilot verifies it against real headers.
 
 **Key Insight:** ~70% of the engine is reusable. Spec-Kit helps us focus the new specification on the **delta** — only what's new or changed.
 
@@ -1145,9 +1155,11 @@ crossing frame boundaries). This enables replay, spectating, and rollback netcod
 
 **Why a new constitution?** The original constitution governs a physics sandbox demo. Orbital Arena is a competitive game with fairness, replay, and networking concerns that don't exist in a single-player sandbox. The constitution captures these new non-negotiable constraints.
 
+> **Field note — where the constitution lives.** The original script never said. What worked: the human-facing copy at `specs/orbital-arena/constitution.md`, **and** the new articles merged into `.specify/memory/constitution.md` (the file the `/speckit.*` agents actually read), scoped with "applies to `orbital_arena` code only." If you skip the machine-copy sync, `/speckit.plan`'s constitution check silently runs against articles 1–8 only and Articles 9–11 are never enforced.
+
 ---
 
-### 3.4 /specify — New Game Features
+### 3.4 /speckit.specify — New Game Features
 
 **Prompt to Copilot:**
 
@@ -1170,6 +1182,8 @@ Features to specify:
 4. Match state machine (lobby → countdown → playing → game_over)
 5. Input system (player input → well control mapping)
 ```
+
+> **Field note — branch vs. spec-dir numbering can diverge.** On a repo with leftover feature branches, the git hook numbers the **branch** by scanning `git branch -a` (here: `006-orbital-arena`), while the specify workflow numbers the **spec directory** by scanning `specs/` (here: `specs/003-orbital-arena/`). Downstream commands follow `.specify/feature.json`, but the helper scripts (`setup-plan.sh`, `setup-tasks.sh`, `check-prerequisites.sh`) recompute the path from the branch name and will error or create a stray `specs/006-…` directory. Don't panic, don't "fix" the numbers — point the command at the directory recorded in `.specify/feature.json` and delete any stray dir.
 
 **Expected Output — Full Specification (excerpt for Scoring System):**
 
@@ -1240,7 +1254,7 @@ destroyed (entity removed from ECS world).
 
 ---
 
-### 3.5 /plan — Mapping Foundation to New Architecture
+### 3.5 /speckit.plan — Mapping Foundation to New Architecture
 
 **Key planning insight:** Show which existing modules map directly and which need new code.
 
@@ -1298,9 +1312,17 @@ destroyed (entity removed from ECS world).
 | 8   | Replay determinism test               | ~80   | Task 7           |
 ````
 
+> **Field note — three things the 8-row table omits, which the real plan had to add:**
+>
+> 1. **CMake wiring.** A new game library is 4 build-file changes: `src/orbital_arena/CMakeLists.txt` (new static lib), `tests/orbital_arena/CMakeLists.txt` (new CTest dir, **no `GTest::gmock`** — see §S.7's registry gotcha), plus one-line `add_subdirectory` edits in `src/` and `tests/`. There's also a knock-on: any existing test target that compiles `apps/sandbox/scene.cpp` directly must now link the new library. Make this an explicit first task.
+> 2. **Snapshot/state-hash module.** Articles 10–11 (lockstep replay, spectator-safe state) need a home — a flat POD `match_snapshot` + FNV-1a `state_hash()`. The plan grew a 9th module the training table never listed.
+> 3. **A visualization task** (§3.7a). Without a sandbox scene, the "complete game" is invisible — it exists only as green test output.
+>
+> The real plan produced **11 work units**; strict Article 7 test-first splitting turned those into **20 tasks** (test task before each impl task). Expect roughly 2× the unit count, not 8.
+
 ---
 
-### 3.6 /tasks — Delta Decomposition
+### 3.6 /speckit.tasks — Delta Decomposition
 
 Each task specifies ONLY what's new — never re-implementing existing subsystems.
 
@@ -1333,7 +1355,7 @@ Each task specifies ONLY what's new — never re-implementing existing subsystem
 
 ---
 
-### 3.7 /implement — Building on the Foundation
+### 3.7 /speckit.implement — Building on the Foundation
 
 When implementing gravity wells, Copilot can reference the existing physics solver:
 
@@ -1377,6 +1399,32 @@ namespace orbital_arena {
 } // namespace orbital_arena
 ```
 
+> **Field note:** the sketch above is illustrative — `vec2` doesn't exist in this repo. The real implementation follows house style (`float pos[2]`, matching `vfx::particle`), and every module takes an explicit `engine_demo::allocator&` (Article 4). The measured full-arena tick (500 particles + wells + captures + scoring + power-ups + state machine) came in at **0.08 ms** against the 16.67 ms Article 6 budget — in a Debug build.
+>
+> **The one real bug of the run** wasn't in generated game logic at all — it was destruction order: the sandbox scene's destructor freed its arena buffer in the destructor *body*, which runs **before** member destructors; the embedded arena's placement-new'd pool then tore down inside freed memory (access violation in 6 tests). Fix: reset the arena member first. Generated code respected the constitution; the integration seam with pre-existing code is where the crash lived — exactly what per-task `ctest` gates are for.
+
+---
+
+### 3.7a Seeing It Run — Visualization and Screenshots
+
+The 8-task decomposition produces a complete, tested game **that you cannot see**. For a workshop, add one final task: a sandbox scene (`scene_kind::orbital_arena`, modeled on the existing `particle_storm` scene) with a scripted 2-player autopilot, well/particle rendering, and a HUD panel showing per-player scores, match state, and winner.
+
+Countdown (tick 120) — neutral particle field, scores 0:
+
+![Orbital Arena — countdown, neutral 500-particle field](screenshots/orbital-arena-early.png)
+
+Game over (tick 1600) — P0 wins 102 : 80, particles tinted by owning well:
+
+![Orbital Arena — game over, P0 winner HUD](screenshots/orbital-arena-late.png)
+
+Run it yourself: `ea-sandbox --scene orbital --seed 42` (key `5` switches interactively; `--screenshot <relative-path> --warmup N` for captures).
+
+**Constraints that made this task honest:**
+
+- Autopilot inputs derive purely from the arena tick index — zero draws from the scene's existing rng, so **all pre-existing scene digests are byte-identical** (verified: rope digest at seed 42 unchanged before/after).
+- The orbital scene contributes its own digest (headless runs at the same seed produce identical traces — Article 10 at the app layer).
+- Rendering is float-boundary code (Article 5 allows it); game state stays in the deterministic core.
+
 ---
 
 ### 3.8 How Spec-Kit Prevents Scope Creep
@@ -1394,16 +1442,20 @@ If someone says "add networking," the response is: "Write a `/specify` for it. W
 
 **The constitution is the scope boundary.** Article 10 (Lockstep Replay) implies networking-readiness but does NOT require a network implementation. The spec explicitly states "replay" not "live multiplayer." Scope is bounded by what the constitution mandates.
 
+> **Field note — the constitution bites back in fun ways.** The first demo autopilot gave player 1 the exact *negation* of player 0's steering. Result: a permanent 495–495 sudden-death tie. Why? The arena implements Article 9 fairness **bit-exactly** — mirrored inputs are guaranteed to produce mirrored outcomes, so no leader could ever emerge. The "bug" was the constitution working perfectly; the fix was detuning the two players' steering frequencies. When a constitutional article is implemented as a hard invariant, even your demo script has to respect it.
+
 ---
 
 ### 3.9 Reflection and Key Takeaways
 
 | Insight                                                                       | Evidence                                               |
 | ----------------------------------------------------------------------------- | ------------------------------------------------------ |
-| "70% of the engine is reusable without modification"                          | Module mapping shows 4/6 subsystems unchanged          |
+| "70% of the engine is reusable without modification"                          | Field-verified: 6 of 7 subsystems consumed unchanged   |
 | "The new constitution adds game-specific rules without breaking engine rules" | Articles 1-6 inherited; 9-11 are additive              |
-| "Task count is proportional to actual new code, not total codebase size"      | 8 tasks for a complete game, because foundation exists |
+| "Task count is proportional to actual new code, not total codebase size"      | 20 test-first tasks for a complete game, because foundation exists |
 | "Spec-Kit makes the 'use existing code' decision explicit and documented"     | Plan shows module mapping table                        |
+| "Detailed contracts before implementation eliminate iteration"                | Field run: zero unplanned compile errors across all 20 tasks; every impl green on first build |
+| "The plan stage corrects the analysis stage"                                  | §3.2's constraint-solver mapping was wrong; `/speckit.plan` fixed it against real headers |
 
 ---
 
@@ -1532,19 +1584,165 @@ Maximum entity count is fixed at construction (default: 4096). No dynamic resizi
 - Real-time: O(1) with no branches in hot path (create/destroy)
 ```
 
-**Repeat for each subsystem:**
+You just ran iteration 1 by hand. Five more subsystems need the identical treatment — and that repetition is exactly the shape of work an **agent loop** handles. Continue to §4.2a.
 
-- `specs/transform/physics-constraint.spec.md`
-- `specs/transform/game-loop.spec.md`
-- `specs/transform/rng.spec.md`
-- `specs/transform/frame-budget.spec.md`
-- `specs/transform/allocator.spec.md`
+---
+
+### 4.2a Agent Loop — Batching the Remaining Reverse-Specs
+
+> **⏱ ~10 minutes** | One prompt generates all 5 remaining reverse-specs.
+
+#### What an Agent Loop Is
+
+An **agent loop** is a single Agent Mode prompt that contains four things:
+
+1. A **work manifest** — the ordered list of items to process
+2. A **per-item task template** — the same instructions applied to each item
+3. **Per-item acceptance criteria** — mechanical checks the agent runs on its own output before advancing
+4. A **completion report** — a summary the human reviews at the end
+
+The agent then iterates autonomously: pick the next manifest item → execute the template → self-verify against the criteria → mark done → continue. You watch the rhythm instead of retyping the prompt five times.
+
+**Why this task qualifies.** Not every batch of work should be looped. The remaining reverse-specs pass all three qualification tests:
+
+| Test                         | Reverse-specs                                                               |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| Items are independent        | Each spec reads its own header/source pair; no spec depends on another      |
+| Items are identical in shape | Same 4-point extraction template, same 5-section output structure           |
+| Verification is mechanical   | File exists, sections present, zero C++ syntax — checkable without judgment |
+
+**When NOT to loop.** Never loop `/speckit.implement` tasks. Implementation tasks produce code, depend on each other, and require per-item human judgment — that's why §1.3 mandates one-task-at-a-time with a HITL gate between each. The loop here is acceptable **only because reverse-specs are read-only prose artifacts**: a bad one costs a regeneration, not a broken build. The HITL gate doesn't disappear — it moves from per-item to per-batch (see the gate below).
+
+**How this differs from the CLI batch in §4.6 Scenario B.** Both produce the same 5 files; the mechanics and the outcome quality differ:
+
+| Dimension         | CLI batch (§4.6 Scenario B)                   | Agent Loop (this section)                                        |
+| ----------------- | --------------------------------------------- | ---------------------------------------------------------------- |
+| Mechanics         | Shell loop; N isolated `copilot -p` processes | One Agent Mode session; the agent iterates internally            |
+| Shared context    | None — each process starts cold               | Full — every spec sees the ecs-world template and prior outputs  |
+| Output style      | Can drift between specs                       | Consistent structure and terminology across all 5                |
+| Self-verification | None built in                                 | Per-item acceptance criteria checked before advancing            |
+| Best for          | CI, headless environments, true parallelism   | Interactive sessions where consistency matters                   |
+
+#### The Agent Loop Prompt
+
+Paste this into Copilot Chat **Agent Mode** (not a `/speckit.*` command — this is a plain agent-mode prompt):
+
+```text
+You are executing an AGENT LOOP: a work manifest, a per-item task template,
+per-item acceptance criteria, and a completion report.
+
+MANIFEST — process strictly in this order, one item at a time:
+1. include/engine_demo/physics/constraint.h + src/engine_demo/physics/constraint.cpp
+   → specs/transform/physics-constraint.spec.md
+2. include/engine_demo/sim/game_loop.h + src/engine_demo/sim/game_loop.cpp
+   → specs/transform/game-loop.spec.md
+3. include/engine_demo/sim/rng.h + src/engine_demo/sim/rng.cpp
+   → specs/transform/rng.spec.md
+4. include/engine_demo/frame_budget.h + src/engine_demo/frame_budget.cpp
+   → specs/transform/frame-budget.spec.md
+5. include/engine_demo/allocator.h + src/engine_demo/allocator.cpp
+   → specs/transform/allocator.spec.md
+
+PER-ITEM TASK TEMPLATE — for each manifest item:
+Read both source files. Extract a language-agnostic behavioral specification
+that captures:
+1. What the abstraction IS (behavioral contract, not C++ class definition)
+2. What operations are supported, with complexity and allocation behavior
+3. What guarantees the system provides
+4. What constraints are constitutional (determinism, real-time, no allocation
+   in inner loops)
+Use specs/transform/ecs-world.spec.md as the structural template — mirror its
+section layout (Purpose / Model / Operations / Guarantees / Constraints).
+Output must be implementable in ANY language: no C++ syntax, no EASTL
+references, no pointer semantics.
+
+PER-ITEM ACCEPTANCE CRITERIA — verify each item BEFORE advancing to the next:
+- File written at the exact manifest path
+- Contains all five sections (Purpose / Model / Operations / Guarantees /
+  Constraints)
+- Operations table includes Complexity and Allocates? columns
+- Zero C++ syntax, EASTL references, or pointer semantics anywhere in the file
+If an item fails a criterion, fix it before moving on. Do NOT stop to ask
+questions mid-loop.
+
+COMPLETION REPORT — after all 5 items, output a summary table:
+| Subsystem | Output file | Line count | Criteria pass/fail |
+```
+
+**What to watch for while it runs:** the loop rhythm — read files → write spec → self-check → next item. If the agent skips the self-check or batches multiple items into one pass, interrupt it and restate the loop protocol.
+
+**🚨 HITL GATE — batch review.** The per-item gates were delegated to the agent's self-checks; your review now happens once, at batch level:
+
+- [ ] Completion report shows all 5 items passing all criteria
+- [ ] Spot-check two specs by hand — one subsystem you know well (does the behavior match reality?) and one you don't (is it understandable without the C++?)
+- [ ] Run the mechanical C++-leak check — it must return nothing:
+
+```bash
+grep -rlE 'eastl::|std::|->' specs/transform/*.spec.md
+```
+
+❌ **If any spec fails**, reject only that item: re-run the loop prompt with the manifest cut down to the failing entries. The passing specs stay.
+
+> **Facilitator says:** "Notice how the loop reused every Spec-Kit habit you already have. The manifest is a contextual anchor (Practice 6). The per-item criteria are falsifiable objectives (Practice 1). And the human gate never disappeared — it moved to where it's cheapest: one batch review instead of five identical ones (Practice 10). That trade is safe here ONLY because specs are prose. Never make it for code."
 
 ---
 
 ### 4.3 Phase B: Target Constitution (Rust/Bevy)
 
-**The target constitution replaces C++-specific rules with Rust/Bevy idioms while preserving behavioral guarantees:**
+The target constitution is **generated, not hand-written**. Before running the prompt below,
+complete the research and consolidation prompt series in
+[Appendix D](#appendix-d-rust-game-dev-research-and-guidelines-prompt-series) — it produces
+`specs/transform/rust-guidelines.md`, the consolidated Rust game-development guidelines that
+carry EASTL's *concepts* (explicit memory ownership, fixed capacity, no hidden allocation,
+allocation observability) into Rust idioms without attempting a 1:1 EASTL→Rust mapping.
+
+#### 4.3.1 Constitution Generation Prompt
+
+**Prompt to Copilot (VS Code Agent Mode or Copilot CLI):**
+
+```text
+/speckit.constitution
+
+Generate the target constitution for the Rust/Bevy port of engine_demo and write it
+to specs/transform/rust-constitution.md.
+
+Inputs — read ALL of these before drafting a single article:
+1. specs/transform/rust-guidelines.md — consolidated Rust game-dev guidelines
+   (produced by the Appendix D prompt series)
+2. specs/transform/*.spec.md — the language-agnostic behavioral specs from Phase A
+3. specs/constitution.md — the C++ constitution, for the list of behavioral
+   guarantees that must survive the language change
+
+Rules:
+- Preserve behavioral GUARANTEES (determinism, frame budget, test-first, HITL
+  gates), never C++ MECHANISMS. If a C++ article exists only to work around a C++
+  limitation (e.g. "EASTL-first" exists because std:: containers hide allocation),
+  replace it with the Rust-idiomatic rule that achieves the same guarantee, or
+  drop it with a one-line justification.
+- Where the guidelines borrow an EASTL concept, express it in Rust idioms — do
+  NOT invent EASTL-shaped APIs in Rust. The goal is a solid foundation for Rust
+  game development, not a port of EASTL.
+- Every article must be enforceable: name the tool or test pattern that enforces
+  it (clippy lint, grep gate in CI, #[test] pattern, cargo deny, headless App
+  integration test).
+- Tag every article as Inherited / Adapted / New with a one-line rationale.
+- 8–12 articles maximum. List any guideline you deliberately did NOT promote
+  into the constitution, and why.
+
+Gate (HITL): I will review each article against the Phase C pattern-mapping table
+before this constitution is committed. Do not proceed to /speckit.plan.
+```
+
+**Review checklist before accepting the generated constitution:**
+
+- [ ] Every C++ behavioral guarantee is covered by exactly one Rust article (no orphans, no duplicates)
+- [ ] No article prescribes an EASTL mechanism dressed in Rust syntax (e.g. a custom allocator trait where `Vec::with_capacity()` + a zero-alloc test gives the same guarantee)
+- [ ] Every article names its enforcement tool — an unenforceable article is a wish, not a law
+- [ ] The Inherited/Adapted/New tags match your expectations from the §4.3.2 reference below
+
+#### 4.3.2 Reference Constitution
+
+**A well-generated constitution should land close to this reference — it replaces C++-specific rules with Rust/Bevy idioms while preserving behavioral guarantees:**
 
 ```markdown
 # engine_demo (Rust/Bevy) — Constitution
@@ -1801,7 +1999,7 @@ You:
 
 #### Scenario B: Programmatic Mode — Batch Spec Generation
 
-Use Copilot CLI programmatically to generate reverse-specs for each subsystem:
+Use Copilot CLI programmatically to generate reverse-specs for each subsystem. This is the shell-loop counterpart to the Agent Loop in §4.2a — each `copilot -p` invocation is an isolated process with no shared context, which suits CI and headless environments but sacrifices the cross-spec consistency the Agent Loop provides:
 
 ```bash
 # Generate reverse-spec for the ECS subsystem
@@ -2173,6 +2371,141 @@ ctest --preset default-debug --output-on-failure
 
 If you draft `std::vector` or `try`/`catch`, STOP and re-read this file.
 ````
+
+---
+
+## Appendix D: Rust Game-Dev Research and Guidelines Prompt Series
+
+This appendix supports [§4.3 Phase B](#43-phase-b-target-constitution-rustbevy). It is a
+three-step prompt pipeline: **research → consolidate → generate**. Steps D.1 and D.2 live
+here; the final constitution-generation prompt (step D.3) is part of the training body at
+§4.3.1.
+
+```text
+┌────────────────────┐     ┌──────────────────────────┐     ┌───────────────────────────┐
+│  D.1 Research      │────▶│  D.2 Consolidation       │────▶│  D.3 Constitution (§4.3.1)│
+│  5 focused prompts │     │  EASTL concepts + merge  │     │  /speckit.constitution    │
+│  research/*.md     │     │  rust-guidelines.md      │     │  rust-constitution.md     │
+└────────────────────┘     └──────────────────────────┘     └───────────────────────────┘
+```
+
+All artifacts land under `specs/transform/`. Run the prompts in VS Code Agent Mode, or
+batch them with `copilot -p` (see Appendix B) — each research prompt is independent, so
+they parallelize cleanly.
+
+### D.1 Research Prompt Series
+
+One prompt per topic. Each produces a short, evidence-backed research note — demand
+sources and trade-offs, not just recommendations.
+
+**R1 — Architecture and ECS:**
+
+```text
+Research current best practices for structuring game code in Rust with an ECS
+(Bevy in particular). Cover: Components vs Resources vs Events decision rules;
+system ordering and schedules (Update vs FixedUpdate); plugin decomposition;
+when NOT to use ECS. For each practice, state the failure mode it prevents.
+Cite sources (Bevy book/docs, established community references). Write the note
+to specs/transform/research/r1-architecture.md. Do not write any Rust code.
+```
+
+**R2 — Memory and Allocation:**
+
+```text
+Research memory-management best practices for real-time Rust games. Cover:
+pre-allocation patterns (Vec::with_capacity, object pools, arenas — bumpalo and
+friends); how to detect and prevent per-frame heap allocation; fixed-capacity
+collection crates (arrayvec, smallvec, heapless) and their trade-offs; when
+Rust's ownership model makes a C++-style custom allocator unnecessary, and the
+rare cases where it doesn't. Write to specs/transform/research/r2-memory.md.
+```
+
+**R3 — Determinism:**
+
+```text
+Research determinism in Rust game simulations. Cover: seeded RNG choices (rand's
+StdRng vs explicit algorithm crates and their stability-across-versions
+guarantees); f32 vs f64 accumulators; sources of nondeterministic iteration order
+(HashMap, ECS query order, parallel system execution) and their mitigations;
+floating-point reproducibility across platforms. Write to
+specs/transform/research/r3-determinism.md.
+```
+
+**R4 — Error Handling and API Design:**
+
+```text
+Research error-handling and public-API best practices for Rust game code. Cover:
+panic policy for real-time loops (panic = dropped frame or crashed process);
+Result/Option patterns vs C++-style status enums; #[must_use] as the analogue of
+[[nodiscard]]; unsafe policy and // SAFETY: conventions; clippy lint tiers worth
+enforcing in CI. Write to specs/transform/research/r4-errors-api.md.
+```
+
+**R5 — Testing and Tooling:**
+
+```text
+Research testing and CI practices for Rust games. Cover: headless Bevy App tests
+(MinimalPlugins) for system-level integration; deterministic replay tests; frame
+budget/perf assertions in tests vs criterion benchmarks; cargo clippy/fmt/deny in
+CI; detecting per-frame allocations in tests. Write to
+specs/transform/research/r5-testing.md.
+```
+
+### D.2 Consolidation Prompts
+
+**C1 — Extract EASTL's design concepts (not its APIs):**
+
+```text
+Read specs/constitution.md, include/engine_demo/allocator.h, and the EASTL usage
+across include/ and src/. Extract the DESIGN CONCEPTS that EASTL brings to this
+codebase, stated language-neutrally — e.g.: explicit memory ownership; allocation
+is visible and budgeted, never hidden; fixed capacity decided up front; container
+behavior is deterministic; allocation observability (bytes_used is queryable).
+For each concept: why it matters for games, and what breaks without it.
+Explicitly EXCLUDE EASTL mechanics that are C++ workarounds (allocator template
+parameters, fixed_vector overflow flags). Write to
+specs/transform/research/c1-eastl-concepts.md.
+```
+
+**C2 — Consolidate into proposed guidelines:**
+
+```text
+Read all of specs/transform/research/*.md. Consolidate them into a single
+proposed guidelines document: specs/transform/rust-guidelines.md.
+
+Goal: a solid foundation for Rust game development that HONORS the EASTL
+concepts from c1-eastl-concepts.md — NOT a 1:1 mapping of EASTL to Rust. Where
+Rust's ownership model already delivers a concept, say so and stop; where it
+doesn't (e.g. hidden Vec growth in a frame loop), propose the Rust-idiomatic
+practice that restores the guarantee.
+
+Format: 10–15 numbered guidelines. Each has: the guideline (one sentence), the
+EASTL concept or research note it derives from, the Rust idiom that implements
+it, and how to enforce it (lint/test/CI). Flag conflicts between research notes
+rather than silently resolving them — conflicts are HITL review items.
+
+Gate (HITL): I will review and edit these guidelines before they feed the
+constitution prompt in §4.3.1.
+```
+
+### D.3 Constitution Generation
+
+With `rust-guidelines.md` reviewed and approved, run the constitution-generation prompt in
+[§4.3.1](#43-phase-b-target-constitution-rustbevy) — that step is part of the training
+proper, because generating (and gating) a constitution from researched guidelines is the
+repeatable skill; the research pipeline in this appendix is the reusable scaffolding.
+
+**Batch variant (Copilot CLI, requires authentication):**
+
+```bash
+# D.1 research prompts are independent — run them in parallel shells or /fleet
+copilot -p "<R1 prompt>" --allow-tool='write' --allow-tool='shell(cat)'
+copilot -p "<R2 prompt>" --allow-tool='write' --allow-tool='shell(cat)'
+# ... R3–R5, then sequentially:
+copilot -p "<C1 prompt>" --allow-tool='write' --allow-tool='shell(cat)'
+copilot -p "<C2 prompt>" --allow-tool='write' --allow-tool='shell(cat)'
+# D.3 runs interactively — the HITL gate on the constitution is the point.
+```
 
 ---
 
