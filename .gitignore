@@ -31,3 +31,6 @@ CMakeUserPresets.json
 
 #VS Code
 .vs/
+
+# Rust (rust-port/orbital-arena-rs/)
+rust-port/orbital-arena-rs/target/

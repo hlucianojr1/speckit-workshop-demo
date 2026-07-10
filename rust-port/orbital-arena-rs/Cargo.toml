@@ -1,0 +1,32 @@
+[package]
+name = "orbital-arena-rs"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "orbital-arena-rs"
+path = "src/main.rs"
+
+[lib]
+name = "orbital_arena_rs"
+path = "src/lib.rs"
+
+[dependencies]
+bevy = "0.16"
+rand = "0.9"
+clap = { version = "4", features = ["derive"] }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+indexing_slicing = "deny"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
