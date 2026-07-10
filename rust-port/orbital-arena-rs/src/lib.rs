@@ -9,6 +9,7 @@ pub mod body;
 pub mod config;
 pub mod constraint;
 pub mod frame_budget;
+pub mod game;
 pub mod rng;
 pub mod screenshot;
 pub mod visuals;

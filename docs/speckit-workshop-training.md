@@ -52,6 +52,7 @@
 - [Part 4: Use Case — Cross-Language Game Transformation](#part-4-use-case--cross-language-game-transformation)
   - [4.1 Session Overview](#41-session-overview)
   - [4.2 Phase A: Reverse-Specification](#42-phase-a-reverse-specification)
+  - [4.2a Phase A2 (Extension): Reverse-Specifying the Orbital Arena Game Layer](#42a-phase-a2-extension-reverse-specifying-the-orbital-arena-game-layer)
   - [4.3 Phase B: Target Constitution (Rust/Bevy)](#43-phase-b-target-constitution-rustbevy)
   - [4.4 Phase C: Transformation Plan](#44-phase-c-transformation-plan)
   - [4.5 Phase D: Tasks and Implementation](#45-phase-d-tasks-and-implementation)
@@ -1464,10 +1465,25 @@ If someone says "add networking," the response is: "Write a `/specify` for it. W
 
 |                  |                                                                                                  |
 | ---------------- | ------------------------------------------------------------------------------------------------ |
-| **Objective**    | Transform engine_demo from C++20/raylib to Rust/Bevy ECS using Spec-Kit as the translation layer |
-| **Duration**     | 90 minutes                                                                                       |
+| **Objective**    | Transform the **`engine_demo` engine foundation** (ECS, physics constraint solver, game loop, RNG, frame budget, allocator) from C++20 to Rust/Bevy ECS using Spec-Kit as the translation layer |
+| **Duration**     | 90 minutes (core) + 45–60 minutes for the optional Phase A2 game-layer extension                |
 | **Approach**     | Reverse-spec the C++ → write Rust constitution → plan transformation → implement in Rust         |
 | **Key Learning** | Specs are language-agnostic; the same spec can drive implementation in any language              |
+
+> **⚠️ Scope — read this before you start.** This part transforms the reusable **engine
+> foundation** living in `include/engine_demo/` and `src/engine_demo/` — the same six
+> subsystems reverse-specced in §4.2. It does **NOT** transform the **Orbital Arena game**
+> itself (`include/orbital_arena/`: gravity wells, capture/scoring, match lifecycle,
+> power-ups, input replay) that Part 3 built on top of that foundation. If you run only
+> §4.2–§4.5, the resulting Rust program will look like a generic physics demo (a rigid-link
+> "rope" orbiting an anchor) — it will **not** resemble the two-player gravity-well capture
+> game from Part 3's screenshots. That is expected, not a bug: "engine" and "game" are
+> different layers, and Part 4 as written only exercises the engine layer.
+>
+> Want the Rust program to actually look like the Part 3 game? Complete the optional
+> [§4.2a Phase A2 extension](#42a-phase-a2-extension-reverse-specifying-the-orbital-arena-game-layer)
+> after §4.2, which reverse-specs the game layer's visually-defining mechanics (gravity
+> wells, capture, scoring) and extends the Rust implementation to match.
 
 **Prerequisites:**
 
@@ -1590,6 +1606,97 @@ Maximum entity count is fixed at construction (default: 4096). No dynamic resizi
 - `specs/transform/rng.spec.md`
 - `specs/transform/frame-budget.spec.md`
 - `specs/transform/allocator.spec.md`
+
+These six specs fully cover the **engine foundation**. If you stop here and go straight to
+Phase B, the Rust program you build in §4.5 will be a faithful port of the constraint
+solver — not the Orbital Arena game. Continue to §4.2a only if you want the game layer too.
+
+---
+
+### 4.2a Phase A2 (Extension): Reverse-Specifying the Orbital Arena Game Layer
+
+**Goal:** Extend Phase A to the Orbital Arena GAME built in Part 3 (`include/orbital_arena/`)
+— specifically the mechanics that define the game's visual identity: player-controlled
+gravity wells, capture contention, and scoring/win condition. This is what makes the Rust
+screenshot actually look like a two-player capture game instead of a generic physics demo.
+
+**Why this is a separate phase, not part of §4.2:** `include/orbital_arena/` is a
+substantially larger surface than the six engine subsystems — it also includes a full
+lobby/countdown/game-over state machine (`match.h`), timed power-ups (`powerup.h`), an
+input replay log (`input.h`), and a POD snapshot/state-hash for determinism verification
+(`snapshot.h`). Reverse-specifying and re-implementing **all** of it is a multi-day
+undertaking, not a workshop extension. Phase A2 deliberately reverse-specs only the
+mechanics a screenshot can show — gravity wells, capture, scoring — and explicitly
+documents the rest as descoped. Treat the omitted subsystems as a "further work" exercise
+for after the workshop, not as things this exercise claims to have covered.
+
+**Prompt to Copilot (VS Code Agent Mode) — repeat for each of the three targets below:**
+
+```text
+/speckit.specify (reverse)
+
+Analyze the gravity well subsystem in include/orbital_arena/gravity_well.h (there is no
+.cpp — it's declarations plus a small .cpp with the two free functions). Extract a
+language-agnostic specification that captures:
+
+1. What a gravity well IS (a player-controlled radial-attraction field with a capture
+   radius) — behavioral contract, not C++ struct definition
+2. The radial-acceleration formula (inverse-square with a clamped minimum distance) and
+   exactly when it is zero
+3. The capture predicate (strictly-inside test) and the kinematic step (steer → velocity →
+   position, clamped to arena bounds)
+4. What guarantees the system provides (fairness — no player-index parameter anywhere;
+   no singularities; determinism)
+
+Output as a spec document with no C++ syntax, no EASTL references. Note explicitly that
+this is a DIFFERENT subsystem from physics::constraint_solver (already reverse-specced in
+Phase A) — they do not share formulas.
+```
+
+Repeat the same prompt shape against `include/orbital_arena/scoring.h` (capture contention,
+award, win evaluation) and `include/orbital_arena/match.h` (lobby/countdown/playing/
+game-over state machine — spec it fully even though the Rust port will simplify it; see
+the Scope Reduction note below).
+
+**Expected outputs:**
+
+- `specs/transform/orbital-arena-gravity-well.spec.md`
+- `specs/transform/orbital-arena-scoring.spec.md`
+- `specs/transform/orbital-arena-match.spec.md`
+
+**Documented Scope Reduction (put this in each spec's Constraints section, don't skip it):**
+Every Phase A2 spec should explicitly name what it is choosing NOT to cover and why —
+power-ups (`powerup.h`), the input replay log (`input.h`), and the snapshot/state-hash
+serialization (`snapshot.h`) are real subsystems with real value, but are descoped here so
+the exercise stays focused on the mechanics a screenshot can prove were ported correctly.
+An honest spec says what it left out; a spec that silently narrows scope teaches students
+the wrong lesson about what "done" means.
+
+**Extending the Rust implementation:** feed these three specs into the same
+`/speckit.specify` → `/speckit.plan` → `/speckit.tasks` → `/speckit.implement` pipeline as
+§4.5, targeting a new `game` module (gravity wells + a particle field they attract +
+capture/scoring) alongside the existing constraint-solver module from §4.2–§4.5 — don't
+delete the original module, since it's still a valid, separately-tested demonstration of
+Phase A's reverse-specs. A reasonable scope for the extension:
+
+- Two (or more) gravity wells, each driven by a simple deterministic motion pattern (a
+  pure function of the fixed tick counter — NOT wall-clock time, per Article 5) since a
+  screenshot-capture exercise has no interactive player input to record
+- A capacity-reserved field of particles attracted by every active well's
+  `radial_acceleration`, integrated the same way as any other sim state
+- Capture resolution + scoring exactly per `orbital-arena-scoring.spec.md`, including the
+  index-independent tie rule
+- A HUD showing each player's score (and the winner, once latched)
+
+**Acceptance gate (in addition to §4.5's per-task gates):**
+
+- [ ] `cargo test` covers the acceleration formula, the capture/tie rule, and the win-latch
+      sequence (score freeze after a winner is set) as unit tests — not just visual
+      inspection
+- [ ] The rendered scene visibly resembles Part 3's reference screenshots: colored wells,
+      an attracted particle field, and a score readout
+- [ ] The original constraint-solver scene/tests from §4.2–§4.5 still build and pass
+      unmodified
 
 ---
 
