@@ -54,6 +54,7 @@
   - [4.2 Phase A: Reverse-Specification](#42-phase-a-reverse-specification)
   - [4.2a Phase A2 (Extension): Reverse-Specifying the Orbital Arena Game Layer](#42a-phase-a2-extension-reverse-specifying-the-orbital-arena-game-layer)
   - [4.2b Phase A3 (Further Extension): HUD Parity and Interactive Control](#42b-phase-a3-further-extension-hud-parity-and-interactive-control)
+  - [4.2c Phase A4 (Further Extension): The Default Sandbox Stage — VFX and Free Particles](#42c-phase-a4-further-extension-the-default-sandbox-stage--vfx-and-free-particles)
   - [4.3 Phase B: Target Constitution (Rust/Bevy)](#43-phase-b-target-constitution-rustbevy)
   - [4.4 Phase C: Transformation Plan](#44-phase-c-transformation-plan)
   - [4.5 Phase D: Tasks and Implementation](#45-phase-d-tasks-and-implementation)
@@ -1787,6 +1788,104 @@ specs/transform/orbital-arena-interactive-control.spec.md.
       velocity update, bounds clamping) as unit tests — the ECS system that wires mouse
       input to that logic is glue code and, consistent with the reference C++ app's own
       input-handling layer, is verified by manual/visual testing, not GTest/`#[test]`
+
+---
+
+### 4.2c Phase A4 (Further Extension): The Default Sandbox Stage — VFX and Free Particles
+
+**Goal:** Reverse-spec and port the actual *default* base sandbox stage (`ea-sandbox`'s
+"rope" scene, the very first screenshot in this training's §0.1) — not the Orbital
+Arena game. Compared side by side against the Rust port's `--scene constraint` demo,
+two more subsystems turn out to be visually dominant in the reference screenshot and
+were never reverse-specced by any prior phase: the pink/blue spark trails (VFX particle
+system, "vfx=N" in the HUD) and the bouncing background dots ("particles=N" in the HUD).
+This is the workshop's THIRD worked example of the same lesson: a passing screenshot
+comparison at a glance is not the same as an audited one.
+
+**What comparison revealed, precisely:**
+
+| HUD counter                | Subsystem                              | Reverse-specced before this phase? |
+| ---------------------------- | ----------------------------------------- | --------------------------------------- |
+| `bodies=` / `edges=`         | `physics::constraint_solver`              | ✅ Phase A (§4.2)                       |
+| `frame_avg` / telemetry text | Sandbox HUD                               | ✅ Phase A3 (§4.2b) — but only wired to the Rust port's `arena` scene, not `constraint` |
+| `particles=`                 | Scene-local free-particle ballistic sim   | ❌ Never — genuinely distinct from both the rope solver and VFX |
+| `vfx=`                       | `engine_demo::vfx` (Feature 001/002)      | ❌ Never — the original workshop's OWN Part 0/Self-Study Lab feature, never carried into Part 4 at all |
+
+**Prompt to Copilot (VS Code Agent Mode):**
+
+```text
+/speckit.specify (reverse)
+
+Analyze include/engine_demo/vfx/{particle.h,emitter.h,force_applicator.h} (the Feature
+001 Particle VFX Subsystem from Part 0 of this training) AND apps/sandbox/scene.cpp's
+spawn_vfx_burst / collision-spark usage of it (Feature 002). Extract a language-agnostic
+specification covering:
+
+1. The particle pool's data model and partial-success try_spawn/age_and_retire contract
+2. The emitter's shape (point/cone/sphere) and force (gravity/wind/turbulence) tagged
+   unions, and try_emit/tick
+3. The determinism rule: each emitter owns ONE seeded rng stream, isolated from every
+   other rng consumer in the simulation, with fixed per-particle draw order
+4. The two application-layer usage patterns: interactive burst-on-click, and
+   collision-triggered spark bursts
+
+Note explicitly that this is render-only state (never read by physics or game rules) —
+a DIFFERENT category from every engine_demo/orbital_arena subsystem specced so far.
+Output to specs/transform/vfx-particle-system.spec.md.
+```
+
+**A second, related gap needs its own spec — don't fold it into the VFX spec above, they
+are genuinely different subsystems:**
+
+```text
+/speckit.specify (reverse)
+
+Analyze apps/sandbox/scene.cpp's m_particles field and substep() function — a
+lightweight ballistic free-particle simulation that is NEITHER the rope solver NOR the
+VFX pool. Extract a specification covering: the particle data model (position/velocity/
+radius only, no constraints), and the fact that different scene variants apply
+COMPLETELY DIFFERENT force/boundary rules to the same particle type (light-gravity-plus-
+bounce-with-sparks vs. twin-gravity-wells-with-wraparound vs. delegated-to-another-
+subsystem) — rule isolation, never blended. State explicitly that (unlike VFX particles)
+this state DOES contribute to the scene's deterministic digest. Output to
+specs/transform/sandbox-free-particles.spec.md.
+```
+
+**Extending the Rust implementation — this is the workshop's largest single addition,
+scope it deliberately:**
+
+- Port the particle pool + gravity-only force application (wind/turbulence explicitly
+  descoped per the VFX spec's own §7 — not needed for visual parity with the reference
+  screenshots) as a small, independently-tested module.
+- Port ONLY the default variant's free-particle force/boundary rule (light gravity +
+  bounce + spark-on-hit) — the twin-well and delegated variants are explicitly descoped
+  by `sandbox-free-particles.spec.md` §6, since the delegated variant's role is already
+  served (differently) by the Orbital Arena game's own particle field from §4.2a.
+- Extend the ORIGINAL `--scene constraint` demo (§4.2's rope port) with both: it is the
+  Rust equivalent of the exact screenshot this phase targets. Do not add this to the
+  `arena` scene — that scene already has its own particle field serving an analogous
+  role, and blending the two would contradict `sandbox-free-particles.spec.md`'s rule-
+  isolation guarantee.
+- Wire the §4.2b HUD onto this scene too, closing the "only wired to `arena`" gap noted
+  in the table above, so BOTH Rust scenes show full telemetry.
+- Add an interactive burst (mouse click → physics + VFX burst at the cursor), reusing
+  the camera/cursor conversion already built for §4.2b's well-drag feature rather than
+  re-deriving it — factor that conversion into a small shared helper the first time it's
+  needed by a second feature.
+
+**Acceptance gate:**
+
+- [ ] The VFX pool and free-particle force rule are each covered by `#[test]`s
+      independent of any rendering (spawn-cap partial success, age/retire, gravity
+      integration, bounce reflection, spark trigger) — consistent with every other
+      pure-logic module in this port
+- [ ] The `--scene constraint` screenshot now visually matches the reference "rope"
+      screenshot's defining features: bouncing background particles, spark trails on
+      bounce, and the full telemetry HUD
+- [ ] The `arena` scene (§4.2a/§4.2b) is unmodified and its tests still pass — this
+      phase touches only the `constraint` scene
+- [ ] Both spec documents state explicitly which fields/rules are in scope vs. descoped,
+      per this training's running convention (§4.2a, §4.2b) of never silently narrowing
 
 ---
 

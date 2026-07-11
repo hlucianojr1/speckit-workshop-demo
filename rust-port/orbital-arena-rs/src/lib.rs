@@ -8,10 +8,13 @@ pub mod alloc;
 pub mod body;
 pub mod config;
 pub mod constraint;
+pub mod cursor;
 pub mod frame_budget;
+pub mod free_particles;
 pub mod game;
 pub mod rng;
 pub mod screenshot;
+pub mod vfx;
 pub mod visuals;
 
 use bevy::prelude::*;

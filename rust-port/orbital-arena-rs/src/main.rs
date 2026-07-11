@@ -10,11 +10,13 @@ use clap::{Parser, Subcommand, ValueEnum};
 use orbital_arena_rs::config::{RunMode, SimConfig};
 use orbital_arena_rs::constraint::PhysicsPlugin;
 use orbital_arena_rs::frame_budget::FrameBudgetPlugin;
+use orbital_arena_rs::free_particles::FreeParticlePlugin;
 use orbital_arena_rs::game::drag::WellDragPlugin;
 use orbital_arena_rs::game::visuals::GameVisualsPlugin;
 use orbital_arena_rs::game::GamePlugin;
 use orbital_arena_rs::rng::RngPlugin;
 use orbital_arena_rs::screenshot::ScreenshotPlugin;
+use orbital_arena_rs::vfx::VfxPlugin;
 use orbital_arena_rs::visuals::VisualsPlugin;
 
 /// Which scene to run: the Phase A2 Orbital Arena game (gravity wells + capture +
@@ -104,7 +106,10 @@ fn main() {
                 .add_plugins(WellDragPlugin);
         }
         Scene::Constraint => {
-            app.add_plugins(PhysicsPlugin).add_plugins(VisualsPlugin);
+            app.add_plugins(PhysicsPlugin)
+                .add_plugins(VfxPlugin)
+                .add_plugins(FreeParticlePlugin)
+                .add_plugins(VisualsPlugin);
         }
     }
 
