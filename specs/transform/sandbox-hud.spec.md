@@ -65,9 +65,14 @@ three-tier color (ok / warning / critical)**, not just the frame-time histogram.
 - No exceptions/panics; formatting failures are not possible with fixed-format numeric
   printf-style templates.
 - Real-time (Article 6): the HUD itself must stay within the same frame budget it reports.
-- **Documented scope reduction for the Rust port:** telemetry/event logging
+- **Documented scope reduction:** telemetry/event logging
   (`telemetry::get().emit_event(...)` calls throughout the reference `app.cpp`) is NOT
   covered by this spec — it is a structured-logging concern orthogonal to the visual HUD.
-  Exact pixel-perfect layout (fonts, shadow offsets, gradient backgrounds, vignette,
-  animated grid) is also descoped — the Rust port should reproduce the CONTENT and
-  three-tier color guarantee (§4), not raylib's specific immediate-mode drawing calls.
+- **Phase A5 update (supersedes the earlier visual descope):** exact colors, font sizes,
+  panel geometry, and the gradient/vignette/grid/dust background are now normative —
+  see [sandbox-visual-identity.spec.md](sandbox-visual-identity.spec.md) (§9 for the
+  HUD palette; §2 for the background layers). This spec remains the source of truth
+  for HUD *content* and the three-tier color guarantee (§4); the visual-identity spec
+  supplies the exact values a full-fidelity port must use. Earlier ports that
+  reproduced content-only under the previous descope remain valid against §1–§5 but
+  not against a full-fidelity (100% look-alike) acceptance bar.

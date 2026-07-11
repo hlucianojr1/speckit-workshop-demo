@@ -108,10 +108,14 @@ application/scene layer (not part of the pool/emitter contract itself):
 ## 7. Constraints (constitutional) and Scope Reduction
 
 - No exceptions/panics; all fallible operations return a status/count, never throw.
-- **Documented scope reduction for the Rust port:** the minimal port implements gravity
-  only (the force actually used by the reference sandbox's collision sparks and ambient
-  bursts) — wind and turbulence are specced above for completeness but not required for
-  visual parity with the reference screenshots, and are a natural "next task." The port
-  also uses a smaller pool capacity than the reference's 2048 (tuned for this training
-  VM's software-rendering performance) — capacity is an implementation/tuning choice, not
-  a behavioral guarantee.
+- **Documented scope reduction for the Rust port (superseded for full fidelity):** the
+  minimal Phase A4 port implemented gravity only and a reduced pool capacity. **Phase
+  A5 removes that reduction for a full-fidelity recreation:** all three forces
+  (gravity, wind, turbulence — §2.4) are part of the engine subsystem and required,
+  and the sandbox's exact wiring is normative — pool capacity 2048, burst 24 /
+  spark 6 particles, sphere shape radius 0.03, lifetime 0.6 s, speed 1.5–4.0, spawn
+  color (1.0, 0.85, 0.4, 1.0), emitter seed = scene seed XOR 0x564658 — see
+  [sandbox-scenes.spec.md](sandbox-scenes.spec.md) §9; render styling in
+  [sandbox-visual-identity.spec.md](sandbox-visual-identity.spec.md) §6. The Orbital
+  Arena game embeds a second pool/emitter with different parameters
+  ([orbital-arena-orchestration.spec.md](orbital-arena-orchestration.spec.md) §2.3, §4.2).

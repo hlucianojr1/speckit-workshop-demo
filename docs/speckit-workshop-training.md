@@ -55,6 +55,7 @@
   - [4.2a Phase A2 (Extension): Reverse-Specifying the Orbital Arena Game Layer](#42a-phase-a2-extension-reverse-specifying-the-orbital-arena-game-layer)
   - [4.2b Phase A3 (Further Extension): HUD Parity and Interactive Control](#42b-phase-a3-further-extension-hud-parity-and-interactive-control)
   - [4.2c Phase A4 (Further Extension): The Default Sandbox Stage — VFX and Free Particles](#42c-phase-a4-further-extension-the-default-sandbox-stage--vfx-and-free-particles)
+  - [4.2d Phase A5 (Completion): Full-Fidelity Closure — Every Spec to Recreate the Game](#42d-phase-a5-completion-full-fidelity-closure--every-spec-to-recreate-the-game)
   - [4.3 Phase B: Target Constitution (Rust/Bevy)](#43-phase-b-target-constitution-rustbevy)
   - [4.4 Phase C: Transformation Plan](#44-phase-c-transformation-plan)
   - [4.5 Phase D: Tasks and Implementation](#45-phase-d-tasks-and-implementation)
@@ -1672,7 +1673,10 @@ power-ups (`powerup.h`), the input replay log (`input.h`), and the snapshot/stat
 serialization (`snapshot.h`) are real subsystems with real value, but are descoped here so
 the exercise stays focused on the mechanics a screenshot can prove were ported correctly.
 An honest spec says what it left out; a spec that silently narrows scope teaches students
-the wrong lesson about what "done" means.
+the wrong lesson about what "done" means. (These particular descopes are later closed by
+[Phase A5](#42d-phase-a5-completion-full-fidelity-closure--every-spec-to-recreate-the-game),
+which supersedes them **in place, with markers** — the honest-descope discipline is what
+makes that later closure auditable.)
 
 **Extending the Rust implementation:** feed these three specs into the same
 `/speckit.specify` → `/speckit.plan` → `/speckit.tasks` → `/speckit.implement` pipeline as
@@ -1886,6 +1890,93 @@ scope it deliberately:**
       phase touches only the `constraint` scene
 - [ ] Both spec documents state explicitly which fields/rules are in scope vs. descoped,
       per this training's running convention (§4.2a, §4.2b) of never silently narrowing
+
+---
+
+### 4.2d Phase A5 (Completion): Full-Fidelity Closure — Every Spec to Recreate the Game
+
+**Goal:** Close **every** remaining gap between the C++ game and `specs/transform/` so
+the spec set alone is sufficient to recreate the game **100%** — same colors, same
+gameplay, same scenes, same controls, same headless determinism contract. Phases A–A4
+each closed the gap a screenshot happened to surface; A5 inverts the method: instead of
+comparing outputs and speccing what looks different, **audit the entire code surface
+feature-by-feature against the spec inventory** and spec everything that has no home.
+This is the workshop's fourth — and final — worked example of the audit lesson, and the
+only one that produces a provably complete result rather than a visibly improved one.
+
+**What the full audit revealed (2026-07-11):** reviewing every function in
+`apps/sandbox/` and `include/orbital_arena/` against the then-13 specs found five
+categories of uncovered behavior — roughly 40% of what defines the game on screen:
+
+| Gap category                        | Code source                                   | Prior coverage                        | Closed by (new spec)                          |
+| ----------------------------------- | ---------------------------------------------- | -------------------------------------- | ---------------------------------------------- |
+| Game-layer orchestration (tick pipeline, rng stream topology, symmetric replenishment, constants) | `orbital_arena/arena.h`, `types.h` | ❌ never specced as a whole | `orbital-arena-orchestration.spec.md` |
+| Power-ups / input replay log / snapshot+hash | `powerup.h`, `input.h`, `snapshot.h`  | ❌ A2's documented descope             | `orbital-arena-powerups.spec.md`, `orbital-arena-input-log.spec.md`, `orbital-arena-snapshot.spec.md` |
+| The five scenes: exact geometry, rng draw order, per-scene force rules, digest algorithm | `scene.cpp` builds + `substep()`  | ❌ only the default free-particle rule (A4) | `sandbox-scenes.spec.md` |
+| Visual identity: every RGBA, gradient, bloom layer, animation formula, effect | `app.cpp` draw functions | ❌ explicitly descoped by A3's HUD spec | `sandbox-visual-identity.spec.md` |
+| Full control map + app loop + headless CLI/CSV contract | `app.cpp` input block, `main.cpp`, `headless.cpp` | ❌ only the LMB-drag adaptation (A3)  | `sandbox-controls.spec.md`, `sandbox-headless.spec.md` |
+
+**The descope-reversal convention (the teaching point):** A2–A4's scope reductions were
+honest and explicit — which is precisely what made A5 cheap. Each descope was reversed
+**in place**: the original paragraph stays, amended with a *“superseded for full
+fidelity”* marker and a link to the closing spec (see the amended §6 of
+`sandbox-hud.spec.md`, §5 of `orbital-arena-scoring.spec.md`, §6/§7 of
+`sandbox-free-particles.spec.md` / `vfx-particle-system.spec.md`). A silently-narrowed
+spec would have required re-auditing everything; an explicitly-narrowed one is a to-do
+list.
+
+**The decisive acceptance artifact — golden digests for all five scenes** (seed 42,
+600 frames, two independent runs byte-identical; recorded in
+`sandbox-scenes.spec.md` §8.1):
+
+| Scene           | `trace_digest`     |
+| --------------- | ------------------ |
+| rope            | `9dc3bd72a4f7f31a` |
+| pendulum tower  | `dee045cb412df634` |
+| cloth           | `3cbd246289e0cf63` |
+| particle storm  | `fd2df9d9c889a7fc` |
+| orbital arena   | `919d2feba5bdbeac` |
+
+> **Audit catch worth teaching:** the reference source itself contained a stale golden
+> value — a comment in `scene.cpp` still cites rope digest `33a6319d856d4869`, which
+> pre-dates the rope scene's 32 free particles. Code comments rot; recorded, re-run
+> acceptance values don't. The spec table above is ground truth.
+
+**Prompt shape (one per gap row — the same reverse-spec pattern as §4.2–§4.2c, now
+demanding exact values):**
+
+```text
+/speckit.specify (reverse)
+
+Analyze <files>. Extract a language-agnostic specification at FULL FIDELITY: every
+constant, color, formula, and rng draw order is normative — nothing is "implementation
+detail" unless it is genuinely invisible (platform presentation workarounds, telemetry
+logging). Cross-reference the existing specs in specs/transform/ instead of restating
+them. State explicitly which prior spec's descope this closes, if any. Output to
+specs/transform/<name>.spec.md.
+```
+
+**Acceptance gate (how you know the spec set is actually complete):**
+
+- [ ] **Traceability:** every literal constant in `scene.h`/`scene.cpp`/`app.cpp` and
+      `include/orbital_arena/*.h` maps to exactly one spec section (spot-check with
+      grep; zero unmapped gameplay/visual literals)
+- [ ] **Golden digests:** all five scenes' digests recorded in the spec from two
+      byte-identical runs of the reference build
+- [ ] **Descope audit:** `grep -i descoped specs/transform/` returns only (a) telemetry
+      / platform-workaround exclusions and (b) historical descopes carrying a
+      "superseded for full fidelity" marker with a link to the closing spec
+- [ ] **Config vs. constant:** values that legitimately vary (e.g. arena `half_extent`:
+      game default 5.0 vs. sandbox embedding 2.0) are documented as *configuration*
+      with both values, never silently hardcoded to one
+- [ ] Every new spec names the constitutional articles it inherits and follows the
+      house format (Purpose / Data Model / Operations / Guarantees / Constraints)
+
+**What A5 deliberately still excludes** (and why that's a scope decision, not a gap):
+platform presentation workarounds (DWM/Metal/compositor shims), the JSONL telemetry
+pipeline, crash handlers, and the hang watchdog — operational tooling around the game,
+not the game. The F1 crash key is *listed* in the controls spec (it's player-visible)
+but its mechanism is not specced.
 
 ---
 

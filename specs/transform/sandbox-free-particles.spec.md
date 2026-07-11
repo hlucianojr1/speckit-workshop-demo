@@ -24,9 +24,12 @@ strictly render-only).
 | velocity | 2 × float64   | Current velocity           |
 | radius   | float64       | Visual size, set at spawn  |
 
-A fixed initial population exists per scene (reference: 32); more can be added later via
-a burst-spawn operation (position, count) → each new particle gets a random outward
-velocity and a random radius within a small range, drawn from the scene's own seeded RNG.
+A fixed initial population exists per scene (reference: 32 in the default/rope scene,
+24 in the pendulum tower, 0 in cloth, 500 in the particle storm — exact spawn formulas
+and rng draw order in [sandbox-scenes.spec.md](sandbox-scenes.spec.md) §4); more can be
+added later via a burst-spawn operation (position, count) → each new particle gets a
+random outward velocity and a random radius within a small range, drawn from the
+scene's own seeded RNG.
 
 ## 3. Per-Scene Force and Boundary Rules (this is the interesting part — behavior is
    NOT universal, it varies by which "stage" is active)
@@ -36,6 +39,11 @@ velocity and a random radius within a small range, drawn from the scene's own se
 | Default ("rope"-like stage)     | Light downward gravity (weaker than the rope's own gravity, for visual variety) | Bounce off a fixed rectangular boundary with velocity damping (~0.85×); **each bounce triggers a VFX collision spark** (see vfx-particle-system.spec.md §5) at the contact point |
 | Twin-well variant                | Two fixed-position inverse-square attraction wells + soft velocity damping (~0.999×/tick, to prevent runaway orbits) | Wraps around a generous boundary instead of bouncing (particles feel "infinite") — no bounce, no sparks |
 | Delegated variant                 | N/A — this scene kind hands its ENTIRE free-particle simulation to a different subsystem (its own game/embedded system) | N/A |
+
+> **Phase A5:** the exact constants for every variant (gravity factor 0.25, restitution
+> 0.85, well positions (−1.2, 0.4)/(1.2, −0.3), pull 1.4, softening 0.15, drag 0.999,
+> wrap/bounce bounds) are normative in
+> [sandbox-scenes.spec.md](sandbox-scenes.spec.md) §5 step 4.
 
 ## 4. Operations
 
@@ -60,9 +68,10 @@ velocity and a random radius within a small range, drawn from the scene's own se
   though the reference C++ implementation here uses an always-growing `eastl::vector`
   for burst-added particles — a port MAY choose a capacity-reserved fixed-size collection
   instead, which is a strictly stronger guarantee than the reference).
-- **Documented scope reduction for the Rust port:** only the "default (rope-like)"
-  variant's force/boundary rule (§3 row 1) is required for parity with the reference
-  screenshots that motivated this spec. The twin-well and delegated variants are
-  out of scope for this port (the delegated variant's role is already served by the
-  Phase A2/A3 Orbital Arena game's own particle field, which follows a related but not
-  identical rule set).
+- **Documented scope reduction for the Rust port (superseded for full fidelity):**
+  the original Phase A4 port required only the "default (rope-like)" variant's rule
+  (§3 row 1) for parity with the reference screenshots. **Phase A5 removes that
+  reduction for a full-fidelity recreation:** all three variants are required, with
+  exact rules in [sandbox-scenes.spec.md](sandbox-scenes.spec.md) §5 (twin-well = the
+  particle-storm scene; delegated = the orbital arena scene, whose embedded field is
+  specced in [orbital-arena-orchestration.spec.md](orbital-arena-orchestration.spec.md)).

@@ -34,7 +34,8 @@ smallest distance. Iterate wells in a fixed index order but compare distance VAL
 ### 3.2 Award Capture
 
 Add a base point value to a player's score (doubled if a "double points" effect is active
-for that player — out of scope for a minimal port, see §5). No-op if a winner has already
+for that player — see [orbital-arena-powerups.spec.md](orbital-arena-powerups.spec.md)).
+No-op if a winner has already
 been latched (score freeze after game over).
 
 ### 3.3 Resolve Captures (whole field, one tick)
@@ -72,10 +73,9 @@ Clears scores, winner, and sudden-death — used when a match restarts.
 
 - No exceptions/panics; no RNG in this module.
 - Deterministic, stable iteration order (Article: determinism).
-- **Documented scope reduction for the Rust port:** the reference C++ implementation also
-  supports "double points" and other timed power-up effects
-  (`include/orbital_arena/powerup.h`) that modify `award_capture`'s point value. The
-  minimal Rust port implements the base scoring/contention/win-latch rules above but
-  **omits power-ups entirely** — every capture is worth exactly 1 point, `double_points`
-  is always false. This keeps the port focused on the mechanics that define the game's
-  visual identity (wells, capture, score, win) rather than its full feature set.
+- **Documented scope reduction for the Rust port (superseded for full fidelity):** the
+  minimal Phase A2 port omitted power-ups entirely (every capture worth exactly 1
+  point). **Phase A5 removes that reduction:** the timed effects that modify
+  `award_capture`'s point value are now specced in
+  [orbital-arena-powerups.spec.md](orbital-arena-powerups.spec.md), and a
+  full-fidelity recreation implements them. The base rules in §3 are unchanged.

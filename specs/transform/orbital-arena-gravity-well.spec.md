@@ -26,7 +26,10 @@ a smaller inner radius.
 
 Constants (reference values): max well speed 2.0 units/s; max pull acceleration 40.0
 units/s² at zero clamped distance and strength 1; minimum squared distance 0.01 (prevents
-division blow-up at the well's own position).
+division blow-up at the well's own position); **influence_radius 2.0; capture_radius
+0.15** (identical for all wells — fairness). The arena bounds' `half_extent` is a
+*configuration* value: game default 5.0, sandbox embedding 2.0 — see
+[orbital-arena-orchestration.spec.md](orbital-arena-orchestration.spec.md) §2.1.
 
 ## 3. Operations
 
