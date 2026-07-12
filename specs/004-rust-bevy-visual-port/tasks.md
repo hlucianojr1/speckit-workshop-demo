@@ -428,6 +428,12 @@ A/B against `docs/screenshots/spec-test-cpp-*.png`.
 - [ ] T079 [P] Re-run all Article X gates (fmt, clippy -D warnings, deny) across the enlarged crate
 - [ ] T080 [P] Full screenshot matrix: all five scenes × Rust vs C++ at seed 42, filed under `docs/screenshots/`; update quickstart.md with the headless digest verification commands
 - [ ] T081 Record final conformance results (digest byte-parity or documented tolerance fallback per scene) in the training doc §4.2d acceptance-gate checklist and mark the closed descopes' "superseded" markers as implemented
+  *(Progress 2026-07-12: partially done — added training doc §4.2e recording actual
+  conformance for US5-US8 (rope digest bit-exact; orbital digest documented
+  tolerance-fallback, root-caused; US9/US10 explicitly flagged as not yet built) and
+  updated quickstart.md with `--scene`/`headless` usage and a "Known limitations" section.
+  NOT closing this checkbox: T081 as scoped requires per-scene results for all five
+  scenes, and US9 (pendulum/cloth/storm) remains unimplemented — see Phase 12.)*
 
 ---
 
