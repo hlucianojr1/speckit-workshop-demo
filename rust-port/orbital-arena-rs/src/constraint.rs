@@ -1,17 +1,17 @@
-//! `PhysicsPlugin`: spawns the anchor/orbiting bodies + constraint links at `Startup`, and
-//! runs the sorted-order distance-constraint solver in `FixedUpdate`
-//! (contracts/plugins.md `PhysicsPlugin`, data-model.md §Components `ConstraintLink`,
-//! research.md R6).
-
-use std::f64::consts::TAU;
+//! `PhysicsPlugin`: spawns the 24-node rope chain + constraint links at `Startup`, and
+//! runs true verlet integration + the sorted-order distance-constraint solver in
+//! `FixedUpdate` (sandbox-scenes.spec.md §4.1/§5, physics-constraint.spec.md §4.1,
+//! research.md R6). Rewritten from the earlier hub-star/velocity-integration demo to
+//! match the C++ reference's rope scene exactly (Full-Fidelity Closure backlog, T048).
 
 use bevy::math::DVec2;
 use bevy::prelude::*;
-use rand::Rng;
 
-use crate::body::{Anchor, Body, SpawnIndex};
-use crate::config::{BODY_COUNT, ORBIT_RADIUS};
-use crate::rng::{insert_rng, DeterministicRng};
+use crate::body::{Anchor, Body, Prev, SpawnIndex};
+use crate::config::{
+    FIXED_STEP_SECONDS, GRAVITY_Y, ROPE_ANCHOR_X, ROPE_ANCHOR_Y, ROPE_NODES, ROPE_REST_LENGTH,
+    ROPE_TILT_ANGLE, SOLVER_ITERATIONS,
+};
 
 /// A distance constraint connecting exactly two bodies (data-model.md §Components).
 #[derive(Component, Debug, Clone, Copy)]
@@ -32,79 +32,70 @@ pub struct PhysicsPlugin;
 impl Plugin for PhysicsPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(SortedLinks::default())
-            .add_systems(Startup, spawn_bodies.after(insert_rng))
+            .add_systems(Startup, spawn_bodies)
             .add_systems(FixedUpdate, (integrate_bodies, solve_constraints).chain());
     }
 }
 
-/// Spawns one immovable anchor at the origin plus `BODY_COUNT` orbiting bodies arranged in
-/// a hub topology (every orbiter linked directly to the anchor), with RNG-jittered initial
-/// angle/radius (FR-004, FR-007).
-fn spawn_bodies(mut commands: Commands, mut rng: ResMut<DeterministicRng>) {
-    let anchor = commands
-        .spawn((
+/// Spawns the 24-node rope chain (sandbox-scenes.spec.md §4.1): node *i* at
+/// `x = sin(tilt)*rest*i`, `y = anchor_y - cos(tilt)*rest*i`; node 0 is the only anchor.
+/// Pure formula — consumes ZERO rng draws, preserving the reference's rng draw order
+/// (free particles are the first draws from the scene's rng stream).
+fn spawn_bodies(mut commands: Commands) {
+    let dx = ROPE_TILT_ANGLE.sin() * ROPE_REST_LENGTH;
+    let dy = -ROPE_TILT_ANGLE.cos() * ROPE_REST_LENGTH;
+
+    let mut nodes = Vec::with_capacity(ROPE_NODES);
+    for i in 0..ROPE_NODES {
+        let position = DVec2::new(ROPE_ANCHOR_X + dx * i as f64, ROPE_ANCHOR_Y + dy * i as f64);
+        let is_anchor = i == 0;
+        let mut entity = commands.spawn((
             Body {
-                position: DVec2::ZERO,
+                position,
                 velocity: DVec2::ZERO,
-                inverse_mass: 0.0,
+                inverse_mass: if is_anchor { 0.0 } else { 1.0 },
             },
-            Anchor,
-            SpawnIndex(0),
-        ))
-        .id();
-
-    let mut orbiters = Vec::with_capacity(BODY_COUNT);
-    for i in 0..BODY_COUNT {
-        let base_angle = (i as f64 / BODY_COUNT as f64) * TAU;
-        let angle = base_angle + rng.0.random_range(-0.2..0.2);
-        let radius = ORBIT_RADIUS + rng.0.random_range(-10.0..10.0);
-        let position = DVec2::new(angle.cos() * radius, angle.sin() * radius);
-
-        // Tangential velocity so a rigid distance constraint alone produces
-        // orbit/pendulum-like circular motion around the anchor with no gravity system.
-        let tangent = DVec2::new(-angle.sin(), angle.cos());
-        let speed = 90.0 * (ORBIT_RADIUS / radius).sqrt();
-        let velocity = tangent * speed;
-
-        let entity = commands
-            .spawn((
-                Body {
-                    position,
-                    velocity,
-                    inverse_mass: 1.0,
-                },
-                SpawnIndex((i + 1) as u32),
-            ))
-            .id();
-        orbiters.push(entity);
+            Prev(position),
+            SpawnIndex(i as u32),
+        ));
+        if is_anchor {
+            entity.insert(Anchor);
+        }
+        nodes.push(entity.id());
     }
 
-    for &orbiter in &orbiters {
+    for pair in nodes.windows(2) {
+        let [a, b] = pair else { continue };
         commands.spawn(ConstraintLink {
-            a: anchor,
-            b: orbiter,
-            rest_length: ORBIT_RADIUS,
+            a: *a,
+            b: *b,
+            rest_length: ROPE_REST_LENGTH,
         });
     }
 
-    commands.insert_resource(SortedLinks(Vec::with_capacity(orbiters.len())));
+    commands.insert_resource(SortedLinks(Vec::with_capacity(ROPE_NODES - 1)));
 }
 
-/// Semi-implicit Euler position integration (Article VI: `f64` accumulators/state).
-fn integrate_bodies(time: Res<Time<Fixed>>, mut bodies: Query<&mut Body>) {
-    let dt = time.delta_secs_f64();
-    for mut body in &mut bodies {
-        if body.inverse_mass > 0.0 {
-            let velocity = body.velocity;
-            body.position += velocity * dt;
-        }
+/// True verlet integration (sandbox-scenes.spec.md §5 step 1): `next = cur + (cur -
+/// prev) - g*dt^2` on y; `prev <- cur`. Anchors never move. This replaces the earlier
+/// velocity-based Euler step — the rope has no persistent `Body.velocity` state, matching
+/// the reference (`Body.velocity` stays `DVec2::ZERO` for rope nodes; it exists on the
+/// shared component only because other scenes' bodies use it).
+fn integrate_bodies(mut bodies: Query<(&mut Body, &mut Prev), Without<Anchor>>) {
+    let dt = FIXED_STEP_SECONDS; // independent of Time<Fixed> (see config.rs doc comment)
+    for (mut body, mut prev) in &mut bodies {
+        let cur = body.position;
+        let next = cur + (cur - prev.0) - DVec2::new(0.0, GRAVITY_Y * dt * dt);
+        body.position = next;
+        prev.0 = cur;
     }
 }
 
 /// Sorted-order distance-constraint solver (physics-constraint.spec.md §4.1, research.md
 /// R6): constraints are gathered and sorted by the canonical `(min(a,b), max(a,b))` key
 /// via `Entity`'s built-in `Ord` every tick, then solved in that fixed order so the result
-/// never depends on ECS query/storage iteration order.
+/// never depends on ECS query/storage iteration order. Runs `SOLVER_ITERATIONS` (8)
+/// projection passes per fixed step, matching the reference `constraint_solver::solve`.
 fn solve_constraints(
     mut sorted: ResMut<SortedLinks>,
     links: Query<&ConstraintLink>,
@@ -118,24 +109,26 @@ fn solve_constraints(
         .0
         .sort_unstable_by_key(|&(a, b, _)| if a <= b { (a, b) } else { (b, a) });
 
-    for &(a, b, rest_length) in sorted.0.iter() {
-        let Ok([mut body_a, mut body_b]) = bodies.get_many_mut([a, b]) else {
-            continue;
-        };
-        let delta = body_b.position - body_a.position;
-        let distance = delta.length();
-        if distance < 1e-9 {
-            continue;
+    for _ in 0..SOLVER_ITERATIONS {
+        for &(a, b, rest_length) in &sorted.0 {
+            let Ok([mut body_a, mut body_b]) = bodies.get_many_mut([a, b]) else {
+                continue;
+            };
+            let delta = body_b.position - body_a.position;
+            let distance = delta.length();
+            if distance < 1e-9 {
+                continue;
+            }
+            let inverse_mass_sum = body_a.inverse_mass + body_b.inverse_mass;
+            if inverse_mass_sum <= 0.0 {
+                continue;
+            }
+            let diff = (distance - rest_length) / distance;
+            let correction = delta * (diff / inverse_mass_sum);
+            let inverse_mass_a = body_a.inverse_mass;
+            let inverse_mass_b = body_b.inverse_mass;
+            body_a.position += correction * inverse_mass_a;
+            body_b.position -= correction * inverse_mass_b;
         }
-        let inverse_mass_sum = body_a.inverse_mass + body_b.inverse_mass;
-        if inverse_mass_sum <= 0.0 {
-            continue;
-        }
-        let diff = (distance - rest_length) / distance;
-        let correction = delta * (diff / inverse_mass_sum);
-        let inverse_mass_a = body_a.inverse_mass;
-        let inverse_mass_b = body_b.inverse_mass;
-        body_a.position += correction * inverse_mass_a;
-        body_b.position -= correction * inverse_mass_b;
     }
 }

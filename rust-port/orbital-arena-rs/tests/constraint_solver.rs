@@ -8,8 +8,8 @@ use bevy::math::DVec2;
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
 
-use orbital_arena_rs::body::{Anchor, Body};
-use orbital_arena_rs::config::{RunMode, SimConfig};
+use orbital_arena_rs::body::{Anchor, Body, Prev};
+use orbital_arena_rs::config::{RunMode, SimConfig, ROPE_ANCHOR_X, ROPE_ANCHOR_Y};
 use orbital_arena_rs::constraint::{ConstraintLink, PhysicsPlugin};
 use orbital_arena_rs::rng::RngPlugin;
 
@@ -53,8 +53,10 @@ fn separation_converges_toward_rest_length_when_displaced() {
             .rest_length
     };
 
-    // Displace the orbiter far beyond its rest length with zero velocity, so the
-    // constraint solver alone is responsible for pulling it back in.
+    // Displace the orbiter far beyond its rest length with zero injected velocity, so the
+    // constraint solver alone is responsible for pulling it back in. `Prev` must move with
+    // `position` (sandbox-scenes.spec.md §7 release_held_node semantics) — otherwise verlet
+    // integration reads the stale pre-teleport `Prev` and injects a spurious velocity.
     let distance_before = 1_000.0_f64;
     {
         let world = app.world_mut();
@@ -63,6 +65,10 @@ fn separation_converges_toward_rest_length_when_displaced() {
             .expect("orbiter has a Body component");
         body.position = DVec2::new(distance_before, 0.0);
         body.velocity = DVec2::ZERO;
+        let mut prev = world
+            .get_mut::<Prev>(orbiter)
+            .expect("orbiter has a Prev component");
+        prev.0 = DVec2::new(distance_before, 0.0);
     }
 
     app.update();
@@ -99,6 +105,8 @@ fn anchor_position_never_changes_across_any_number_of_constraints() {
     let body = world
         .get::<Body>(anchor)
         .expect("anchor has a Body component");
-    assert_eq!(body.position, DVec2::ZERO);
+    // The rope's anchor is node 0 at (ROPE_ANCHOR_X, ROPE_ANCHOR_Y) — not the origin
+    // (sandbox-scenes.spec.md §4.1) — but it must never move regardless.
+    assert_eq!(body.position, DVec2::new(ROPE_ANCHOR_X, ROPE_ANCHOR_Y));
     assert_eq!(body.velocity, DVec2::ZERO);
 }

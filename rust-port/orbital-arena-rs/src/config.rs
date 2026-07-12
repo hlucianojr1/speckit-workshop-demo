@@ -4,27 +4,49 @@ use std::path::PathBuf;
 
 use bevy::prelude::*;
 
-/// Number of orbiting bodies spawned around the anchor (research.md's "Body count" note:
-/// fixed at 5 as an implementation default, not a user-facing requirement).
-pub const BODY_COUNT: usize = 5;
+/// Rope scene geometry (sandbox-scenes.spec.md §4.1) — the reference chain, preserved
+/// byte-for-byte: node count, rest length, anchor position, and tilt angle.
+pub const ROPE_NODES: usize = 24;
+pub const ROPE_REST_LENGTH: f64 = 0.30;
+pub const ROPE_ANCHOR_X: f64 = 0.0;
+pub const ROPE_ANCHOR_Y: f64 = 3.0;
+/// ~35 degrees in radians (reference comment) — fixed, not derived.
+pub const ROPE_TILT_ANGLE: f64 = 0.61;
 
-/// Target distance between the anchor and each orbiting body (world units).
-pub const ORBIT_RADIUS: f64 = 150.0;
+/// Free-particle population for the rope scene (reference: 32).
+pub const ROPE_FREE_PARTICLE_COUNT: usize = 32;
 
-/// Radius of the arena boundary circle (world units); must exceed `ORBIT_RADIUS` with
-/// margin so orbiting bodies stay visually inside it.
-pub const ARENA_RADIUS: f64 = 220.0;
+/// Fixed simulation step (sandbox-scenes.spec.md §3: 1/60 s). Used as a literal `f64`
+/// everywhere physics integrates time, rather than `Time<Fixed>::delta_secs_f64()` —
+/// Bevy's `Time<Fixed>` quantizes its period to whole nanoseconds internally, which is
+/// *not* bit-identical to `1.0 / 60.0`'s IEEE-754 double and silently breaks the
+/// cross-language digest parity (sandbox-scenes.spec.md §8).
+pub const FIXED_STEP_SECONDS: f64 = 1.0 / 60.0;
 
-/// Gizmo circle radius used to draw each body (world units).
-pub const BODY_VISUAL_RADIUS: f64 = 10.0;
+/// Verlet gravity magnitude applied to dynamic bodies (§5 step 1: `-9.81*dt^2` on y).
+pub const GRAVITY_Y: f64 = 9.81;
+/// Constraint-projection iterations per fixed step (§5 step 3).
+pub const SOLVER_ITERATIONS: u32 = 8;
 
-/// Launch-time run mode: normal windowed observation, or automated screenshot capture.
+/// Radius of the arena boundary circle drawn by `VisualsPlugin` (world units; a rough
+/// visual guide only — exact camera/scale work is deferred to the visual-identity
+/// closure, sandbox-visual-identity.spec.md / tasks.md US7).
+pub const ARENA_RADIUS: f64 = 3.5;
+
+/// Gizmo circle radius used to draw each body (world units; see `ARENA_RADIUS` note).
+pub const BODY_VISUAL_RADIUS: f64 = 0.05;
+
+/// Launch-time run mode: normal windowed observation, automated screenshot capture, or
+/// the windowless CSV/digest trace (sandbox-headless.spec.md, T045).
 #[derive(Debug, Clone, PartialEq)]
 pub enum RunMode {
     Windowed,
     Screenshot {
         warmup_frames: u32,
         output_path: PathBuf,
+    },
+    Headless {
+        frames: u32,
     },
 }
 

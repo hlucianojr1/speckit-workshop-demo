@@ -8,10 +8,16 @@ use rand::Rng;
 
 use crate::rng::DeterministicRng;
 
-/// Pool capacity — tuned smaller than the reference's 2048 for this training VM's
-/// software-rendering performance (spec §7: an implementation/tuning choice, not a
-/// behavioral guarantee).
-pub const VFX_POOL_CAPACITY: usize = 512;
+/// Pool capacity (sandbox-scenes.spec.md §9: 2048).
+pub const VFX_POOL_CAPACITY: usize = 2048;
+/// Lifetime shared by every VFX particle (sandbox-scenes.spec.md §9: "Lifetime 0.6 s
+/// (min == max)") — the reference's one shared pool/emitter has exactly one lifetime
+/// value, so this is a crate-wide constant rather than a per-particle field.
+pub const VFX_LIFETIME_SECONDS: f64 = 0.6;
+/// Spawn color shared by every VFX particle, from every burst source (sandbox-scenes.spec.md
+/// §9: RGBA (1.0, 0.85, 0.4, 1.0) normalized) — the reference has exactly one shared
+/// emitter per scene, so bounce sparks and interactive click bursts share this color too.
+pub const VFX_SPAWN_COLOR: [f32; 4] = [1.0, 0.85, 0.4, 1.0];
 /// Gravity-only force (spec §7 scope reduction), matching the reference's downward pull.
 const GRAVITY_ACCEL: DVec3 = DVec3::new(0.0, -9.81, 0.0);
 
@@ -50,14 +56,16 @@ pub fn try_spawn_burst(
     let spawned = count.min(free);
     for _ in 0..spawned {
         let angle = rng.0.random_range(0.0..std::f64::consts::TAU);
-        let speed = rng.0.random_range(0.5..2.0);
+        // Speed/size ranges per sandbox-scenes.spec.md §9.
+        let speed = rng.0.random_range(1.5..4.0);
+        let size = rng.0.random_range(0.02..0.05) as f32;
         let velocity = DVec3::new(angle.cos() * speed, angle.sin() * speed, 0.0);
         commands.spawn(VfxParticle {
             position,
             velocity,
             remaining_lifetime_seconds: lifetime_seconds,
             color,
-            size: 1.0,
+            size,
         });
     }
     spawned

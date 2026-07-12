@@ -1,31 +1,31 @@
 //! Sandbox free-particle physics (specs/transform/sandbox-free-particles.spec.md),
 //! default (rope-like) scene variant only per the spec's §6 scope reduction: light
 //! gravity + bounce off a rectangular boundary + a VFX collision spark on every bounce.
-//! Only wired into the `constraint` scene (§4.2c) — the `arena` scene has its own,
+//! Only wired into the `rope`/`constraint` scene — the `arena` scene has its own,
 //! rule-isolated particle field (`game::FieldParticle`) and this module is never added
-//! there.
+//! there. Geometry/formulas rewritten to sandbox-scenes.spec.md §4.1/§5 exact values
+//! (Full-Fidelity Closure backlog, T050) — spawn draws now come from `EngineRngRes` (the
+//! reference rng), matching the C++ draw order (x, y, vx, vy, radius) exactly.
 
 use bevy::math::DVec2;
 use bevy::prelude::*;
-use rand::Rng;
 
-use crate::rng::{insert_rng, DeterministicRng};
-use crate::vfx::try_spawn_burst;
+use crate::body::SpawnIndex;
+use crate::config::{FIXED_STEP_SECONDS, GRAVITY_Y, ROPE_FREE_PARTICLE_COUNT};
+use crate::engine_rng::{insert_engine_rng, EngineRngRes};
+use crate::rng::DeterministicRng;
+use crate::vfx::{try_spawn_burst, VFX_LIFETIME_SECONDS, VFX_SPAWN_COLOR};
 
-/// Initial free-particle population (reference: 32).
-pub const FREE_PARTICLE_COUNT: usize = 32;
-/// Rectangular world bounds free particles bounce within.
-pub const HALF_WIDTH: f64 = 260.0;
-pub const HALF_HEIGHT: f64 = 190.0;
-/// Light gravity — weaker than any rigid-body gravity, "for visual interest" per the
-/// reference comment.
-const GRAVITY_Y: f64 = -40.0;
+/// World-space bounce bounds (sandbox-scenes.spec.md §5 step 4, bounce rule): x = ±3.0,
+/// y in [-2.0, 2.0].
+pub const HALF_WIDTH: f64 = 3.0;
+pub const HALF_HEIGHT: f64 = 2.0;
 /// Velocity damping applied on each bounce (reference: 0.85).
 const BOUNCE_DAMPING: f64 = 0.85;
+/// Quarter-strength gravity applied to free particles (reference: `9.81 * 0.25`).
+const FREE_PARTICLE_GRAVITY: f64 = GRAVITY_Y * 0.25;
 /// Spark burst size per bounce (reference `kVfxSparkCount`: 6).
 const SPARK_COUNT: usize = 6;
-const SPARK_LIFETIME_SECONDS: f64 = 0.6;
-const SPARK_COLOR: [f32; 4] = [1.0, 0.75, 0.35, 1.0];
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct FreeParticle {
@@ -34,45 +34,104 @@ pub struct FreeParticle {
     pub radius: f64,
 }
 
+/// Render-only motion trail (sandbox-visual-identity.spec.md §4): the last 10 positions
+/// in a fixed-size ring buffer, oldest to newest, rolled once per `FixedUpdate` step
+/// (never per render frame, and never read by `digest.rs` — trails are explicitly
+/// excluded from the state digest, sandbox-scenes.spec.md §10).
+#[derive(Component, Debug, Clone, Copy)]
+pub struct Trail {
+    points: [DVec2; Trail::LEN],
+    /// Index the NEXT push will overwrite.
+    head: usize,
+    /// Number of valid entries so far (saturates at `LEN`).
+    filled: usize,
+}
+
+impl Trail {
+    pub const LEN: usize = 10;
+
+    pub fn new(initial: DVec2) -> Self {
+        Self {
+            points: [initial; Self::LEN],
+            head: 0,
+            filled: 1,
+        }
+    }
+
+    fn push(&mut self, position: DVec2) {
+        if let Some(slot) = self.points.get_mut(self.head) {
+            *slot = position;
+        }
+        self.head = (self.head + 1) % Self::LEN;
+        self.filled = (self.filled + 1).min(Self::LEN);
+    }
+
+    /// Yields points oldest → newest (spec §4: "oldest → newest").
+    pub fn iter_oldest_to_newest(&self) -> impl Iterator<Item = DVec2> + '_ {
+        let start = (self.head + Self::LEN - self.filled) % Self::LEN;
+        (0..self.filled).filter_map(move |i| self.points.get((start + i) % Self::LEN).copied())
+    }
+}
+
 pub struct FreeParticlePlugin;
 
 impl Plugin for FreeParticlePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_free_particles.after(insert_rng))
-            .add_systems(FixedUpdate, step_free_particles);
+        app.add_systems(Startup, spawn_free_particles.after(insert_engine_rng))
+            .add_systems(FixedUpdate, (step_free_particles, roll_trails).chain());
     }
 }
 
-fn spawn_free_particles(mut commands: Commands, mut rng: ResMut<DeterministicRng>) {
-    for _ in 0..FREE_PARTICLE_COUNT {
-        let x = rng.0.random_range(-HALF_WIDTH..HALF_WIDTH);
-        let y = rng.0.random_range(-HALF_HEIGHT..HALF_HEIGHT);
-        let angle = rng.0.random_range(0.0..std::f64::consts::TAU);
-        let speed = rng.0.random_range(20.0..80.0);
-        commands.spawn(FreeParticle {
-            position: DVec2::new(x, y),
-            velocity: DVec2::new(angle.cos() * speed, angle.sin() * speed),
-            radius: rng.0.random_range(2.5..5.5),
-        });
+/// Spawns the reference's 32 free particles, drawing from the scene's `EngineRngRes`
+/// stream in the exact order sandbox-scenes.spec.md §4.1 mandates: x, y, vx, vy, radius
+/// — 5 draws per particle, none shared with the (rng-free) rope chain construction.
+fn spawn_free_particles(mut commands: Commands, mut rng: ResMut<EngineRngRes>) {
+    for i in 0..ROPE_FREE_PARTICLE_COUNT {
+        let x = rng.0.next_double_unit() * 6.0 - 3.0;
+        let y = rng.0.next_double_unit() * 2.0 - 1.0;
+        let vx = rng.0.next_double_unit() * 2.0 - 1.0;
+        let vy = rng.0.next_double_unit() * 2.0 - 1.0;
+        let radius = 0.04 + rng.0.next_double_unit() * 0.04;
+        commands.spawn((
+            FreeParticle {
+                position: DVec2::new(x, y),
+                velocity: DVec2::new(vx, vy),
+                radius,
+            },
+            Trail::new(DVec2::new(x, y)),
+            // Stable spawn-order index so the state digest iterates free particles in
+            // list order (sandbox-scenes.spec.md §8), independent of ECS storage order.
+            SpawnIndex(i as u32),
+        ));
     }
 }
 
-/// Integrates every free particle by one fixed tick (spec §3 default variant): light
+/// Rolls each particle's trail ring buffer once per fixed step (spec §4's "roll/frame"
+/// cadence, but "frame" there means simulation step, not render frame).
+fn roll_trails(mut particles: Query<(&FreeParticle, &mut Trail)>) {
+    for (particle, mut trail) in &mut particles {
+        trail.push(particle.position);
+    }
+}
+
+/// Integrates every free particle by one fixed tick (spec §5 step 4 bounce rule): light
 /// gravity, then bounce off the rectangular boundary with damping, spawning a VFX
-/// collision spark at the contact point on every bounce (spec §5 / vfx-particle-system
+/// collision spark at the contact point on every bounce (spec §9 / vfx-particle-system
 /// spec's usage pattern).
 fn step_free_particles(
-    time: Res<Time<Fixed>>,
     mut commands: Commands,
     mut particles: Query<&mut FreeParticle>,
     vfx_particles: Query<(), With<crate::vfx::VfxParticle>>,
     mut rng: ResMut<DeterministicRng>,
 ) {
-    let dt = time.delta_secs_f64();
+    // Literal 1/60s, not `Time<Fixed>::delta_secs_f64()` (see config.rs doc comment on
+    // `FIXED_STEP_SECONDS`) — the latter is nanosecond-quantized and silently breaks
+    // cross-language digest parity (sandbox-scenes.spec.md §8).
+    let dt = FIXED_STEP_SECONDS;
     let mut live_vfx = vfx_particles.iter().count();
 
     for mut particle in &mut particles {
-        particle.velocity.y += GRAVITY_Y * dt;
+        particle.velocity.y -= FREE_PARTICLE_GRAVITY * dt;
         let velocity = particle.velocity;
         particle.position += velocity * dt;
 
@@ -102,8 +161,8 @@ fn step_free_particles(
                 live_vfx,
                 contact.extend(0.0),
                 SPARK_COUNT,
-                SPARK_LIFETIME_SECONDS,
-                SPARK_COLOR,
+                VFX_LIFETIME_SECONDS,
+                VFX_SPAWN_COLOR,
                 &mut rng,
             );
             live_vfx += spawned;

@@ -18,6 +18,12 @@ pub struct Body {
 #[derive(Component, Debug, Clone, Copy, Default)]
 pub struct Anchor;
 
+/// Verlet previous-frame position (sandbox-scenes.spec.md §5 step 1: `prev`). Anchors
+/// carry this component too (initialized to their fixed position) but their `Prev` is
+/// never read — the integration system skips anchors entirely.
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub struct Prev(pub DVec2);
+
 /// Stable spawn-order index, independent of `Entity` allocation details, used to order
 /// `SimulationSnapshot::bodies` deterministically (data-model.md's robustness note).
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

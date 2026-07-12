@@ -10,7 +10,10 @@ use bevy::time::TimeUpdateStrategy;
 use orbital_arena_rs::capture_snapshot;
 use orbital_arena_rs::config::{RunMode, SimConfig};
 use orbital_arena_rs::constraint::PhysicsPlugin;
+use orbital_arena_rs::engine_rng::EngineRngPlugin;
+use orbital_arena_rs::free_particles::FreeParticlePlugin;
 use orbital_arena_rs::rng::RngPlugin;
+use orbital_arena_rs::vfx::VfxPlugin;
 
 fn build_headless_app(seed: u64) -> App {
     let mut app = App::new();
@@ -24,7 +27,10 @@ fn build_headless_app(seed: u64) -> App {
         1.0 / 60.0,
     )));
     app.add_plugins(RngPlugin);
+    app.add_plugins(EngineRngPlugin);
     app.add_plugins(PhysicsPlugin);
+    app.add_plugins(VfxPlugin);
+    app.add_plugins(FreeParticlePlugin);
     app
 }
 
@@ -55,7 +61,10 @@ fn different_seed_yields_differing_snapshot() {
 
     let snapshot_baseline = capture_snapshot(&mut app_baseline, 42, 120);
     let snapshot_other = capture_snapshot(&mut app_other, 7, 120);
-    assert_ne!(snapshot_baseline.bodies, snapshot_other.bodies);
+    // Rope body geometry is a pure formula (sandbox-scenes.spec.md §4.1) and is
+    // therefore seed-INDEPENDENT by design; the free particles are the seed-dependent
+    // state (5 rng draws each, §4.1) that must differ across seeds.
+    assert_ne!(snapshot_baseline.particles, snapshot_other.particles);
 }
 
 #[test]
