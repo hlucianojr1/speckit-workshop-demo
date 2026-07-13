@@ -847,6 +847,7 @@ Pass a single prompt on the command line. Copilot completes the task and exits. 
 | `/compact`  | Compress conversation context           |
 | `/context`  | View token usage breakdown              |
 | `/model`    | Switch AI model                         |
+| `/research` | Deep-research investigation (GitHub + web, built-in Research agent, cited report) — see Appendix D |
 
 #### Tool Permissions
 
@@ -2433,6 +2434,31 @@ three-step prompt pipeline: **research → consolidate → generate**. Steps D.1
 here; the final constitution-generation prompt (step D.3) is part of the training body at
 §4.3.1.
 
+### D.0 What is Copilot CLI's `/research` command?
+
+Every R1–R5 prompt below asks for the same thing: "research current best practices...
+cite sources... state trade-offs." GitHub Copilot CLI ships a built-in slash command
+that does exactly this as its full-time job: **`/research TOPIC`**. It's not just a flag —
+it's a dedicated built-in custom agent named `research` that searches GitHub repositories
+and the web, verifies claims, and returns a report with citations. Unlike the default
+agent, it is a read-only investigation: it doesn't edit files or write code unless you
+explicitly ask it to save its findings somewhere.
+
+**How to invoke it:**
+
+- **Interactive** — inside a `copilot` session, run `/research <the same prompt text>`.
+- **Programmatic/batch** — from the shell, run
+  `copilot --agent=research -p "<the same prompt text>" --allow-tool='write'`
+  (the `--allow-tool='write'` is only needed if you want it to save the note directly to
+  the `specs/transform/research/*.md` path named in the prompt, rather than printing it
+  to stdout for you to save yourself).
+
+**Why it's a good fit here:** R1–R5 are exactly the "evidence-backed, cite sources" research
+task `/research` is built for — each callout below shows the equivalent invocation.
+**Why C1/C2 are NOT included:** those two consolidation prompts read *local* repository
+files (`specs/constitution.md`, `include/engine_demo/allocator.h`) rather than GitHub/web
+sources, so they stay as plain default-agent prompts — don't swap them to `/research`.
+
 ```text
 ┌────────────────────┐     ┌──────────────────────────┐     ┌───────────────────────────┐
 │  D.1 Research      │────▶│  D.2 Consolidation       │────▶│  D.3 Constitution (§4.3.1)│
@@ -2461,6 +2487,10 @@ Cite sources (Bevy book/docs, established community references). Write the note
 to specs/transform/research/r1-architecture.md. Do not write any Rust code.
 ```
 
+> **Optional: run via Copilot CLI `/research`** (see [D.0](#d0-what-is-copilot-clis-research-command)).
+> Interactive: start `copilot`, then `/research` followed by the prompt above.
+> Programmatic: `copilot --agent=research -p "<prompt above>" --allow-tool='write'`.
+
 **R2 — Memory and Allocation:**
 
 ```text
@@ -2471,6 +2501,10 @@ collection crates (arrayvec, smallvec, heapless) and their trade-offs; when
 Rust's ownership model makes a C++-style custom allocator unnecessary, and the
 rare cases where it doesn't. Write to specs/transform/research/r2-memory.md.
 ```
+
+> **Optional: run via Copilot CLI `/research`.** Interactive: `/research` followed by the
+> prompt above. Programmatic: `copilot --agent=research -p "<prompt above>"
+> --allow-tool='write'`.
 
 **R3 — Determinism:**
 
@@ -2483,6 +2517,10 @@ floating-point reproducibility across platforms. Write to
 specs/transform/research/r3-determinism.md.
 ```
 
+> **Optional: run via Copilot CLI `/research`.** Interactive: `/research` followed by the
+> prompt above. Programmatic: `copilot --agent=research -p "<prompt above>"
+> --allow-tool='write'`.
+
 **R4 — Error Handling and API Design:**
 
 ```text
@@ -2493,6 +2531,10 @@ Result/Option patterns vs C++-style status enums; #[must_use] as the analogue of
 enforcing in CI. Write to specs/transform/research/r4-errors-api.md.
 ```
 
+> **Optional: run via Copilot CLI `/research`.** Interactive: `/research` followed by the
+> prompt above. Programmatic: `copilot --agent=research -p "<prompt above>"
+> --allow-tool='write'`.
+
 **R5 — Testing and Tooling:**
 
 ```text
@@ -2502,6 +2544,10 @@ budget/perf assertions in tests vs criterion benchmarks; cargo clippy/fmt/deny i
 CI; detecting per-frame allocations in tests. Write to
 specs/transform/research/r5-testing.md.
 ```
+
+> **Optional: run via Copilot CLI `/research`.** Interactive: `/research` followed by the
+> prompt above. Programmatic: `copilot --agent=research -p "<prompt above>"
+> --allow-tool='write'`.
 
 ### D.2 Consolidation Prompts
 
@@ -2550,10 +2596,13 @@ repeatable skill; the research pipeline in this appendix is the reusable scaffol
 **Batch variant (Copilot CLI, requires authentication):**
 
 ```bash
-# D.1 research prompts are independent — run them in parallel shells or /fleet
-copilot -p "<R1 prompt>" --allow-tool='write' --allow-tool='shell(cat)'
-copilot -p "<R2 prompt>" --allow-tool='write' --allow-tool='shell(cat)'
-# ... R3–R5, then sequentially:
+# D.1 research prompts are independent — run them in parallel shells or /fleet.
+# Use --agent=research so each one runs as a real research investigation
+# (GitHub + web search with citations) rather than the default agent — see D.0.
+copilot --agent=research -p "<R1 prompt>" --allow-tool='write'
+copilot --agent=research -p "<R2 prompt>" --allow-tool='write'
+# ... R3–R5, then sequentially. C1/C2 read LOCAL repo files (not GitHub/web), so they
+# stay on the default agent — do not add --agent=research to these two:
 copilot -p "<C1 prompt>" --allow-tool='write' --allow-tool='shell(cat)'
 copilot -p "<C2 prompt>" --allow-tool='write' --allow-tool='shell(cat)'
 # D.3 runs interactively — the HITL gate on the constitution is the point.
