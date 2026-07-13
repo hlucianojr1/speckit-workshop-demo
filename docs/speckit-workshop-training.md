@@ -1740,6 +1740,8 @@ Component/Resource traits.
 | Explicit allocator           | Ownership system           | Rust's ownership replaces manual allocator management   |
 | Lockless ring buffer         | Bevy Events                | Bevy's event system IS the cross-system message bus     |
 
+✅ **Approve** → proceed to §4.4 Phase C (`/speckit.plan`)
+
 ---
 
 ### 4.4 Phase C: Transformation Plan
@@ -1752,7 +1754,31 @@ Component/Resource traits.
 > [Extension Track](part4-extension-track.md#e5-results-the-verified-rust-port) reports
 > the full-game results.
 
-**The plan maps C++ patterns to Rust/Bevy patterns:**
+**Prompt to Copilot (VS Code Agent Mode or Copilot CLI):**
+
+```text
+/speckit.plan
+
+Based on specs/transform/rust-constitution.md (Phase B) and the six specs/transform/*.spec.md
+reverse-specs (Phase A), produce an implementation plan for the Rust/Bevy port of the
+engine_demo foundation and write it to specs/transform/rust-plan.md.
+
+Scope: the engine foundation only — allocator, ecs::world, physics::constraint_solver,
+sim::game_loop, sim::rng, frame_budget — NOT the Orbital Arena game layer built in Part 3
+(see the "Core Track scope" callout in §4.1).
+
+Requirements for the plan:
+- Pattern Mapping: a table of each C++ pattern -> its idiomatic Rust/Bevy replacement
+- Architecture Comparison: a short before/after diagram of the module layout
+- File Layout: the target Cargo project's directory tree (crate root, src/ modules, tests/)
+- Task Decomposition: an ordered, dependency-sized task list, each <=150 lines of diff,
+  test-first ordering (Article 7 of specs/transform/rust-constitution.md)
+
+Cross-check against specs/constitution.md (the C++ original) that every behavioral
+guarantee it encodes is still covered somewhere in the new plan.
+```
+
+**Watch Copilot produce the plan below** — mapping C++ patterns to Rust/Bevy patterns:
 
 ## C++ → Rust/Bevy — Transformation Plan
 
@@ -1816,9 +1842,38 @@ orbital-arena-rs/
 | 5   | Frame budget diagnostics                         | `frame_budget.h/cpp`       | `sim/frame_budget.rs`       | ~80   |
 | 6   | Integration test: determinism across 1000 frames | `test_game_loop.cpp`       | `tests/test_determinism.rs` | ~100  |
 
+**🚨 HITL GATE:** Plan review.
+
+- Pattern mapping covers all six Phase A subsystems, no orphaned C++ pattern? ✅
+- File layout matches the real `rust-port/orbital-arena-rs/` crate conventions? ✅
+- Every task ≤150 lines, test-first ordering preserved (Article 7)? ✅ Largest is ~140 lines
+
+✅ **Approve** → proceed to §4.5 (`/speckit.tasks`)
+
 ---
 
 ### 4.5 Phase D: Tasks and Implementation
+
+**Prompt to Copilot (VS Code Agent Mode or Copilot CLI):**
+
+```text
+/speckit.tasks
+
+Based on specs/transform/rust-plan.md and specs/transform/rust-constitution.md, decompose
+the Rust/Bevy engine-foundation port into implementable tasks. Each task must:
+- Be <=150 lines of diff
+- Include the test BEFORE or WITH the implementation (Article 7)
+- State which files are created or modified
+- State the acceptance gate (what must be true for the task to be approved)
+
+Write the result to specs/transform/rust-tasks.md.
+```
+
+**Watch Copilot reconfirm (or refine) the 6-task decomposition already sized in §4.4.**
+
+**🚨 HITL GATE:** Task sizing review. Dependencies ordered correctly? Test-first maintained?
+
+✅ **Approve** → proceed to `/speckit.implement`
 
 **Example — Task 3: Physics Components + Solver System:**
 
@@ -1864,13 +1919,32 @@ fn constraint_solver_system(
 ```
 ````
 
-**Acceptance Gate:**
+**Prompt to Copilot:**
+
+```text
+/speckit.implement task 3
+
+Implement Task 3 as specified in specs/transform/rust-tasks.md: the physics components
+and constraint solver system.
+Files: src/physics/components.rs, src/physics/systems.rs
+
+Constraints (from specs/transform/rust-constitution.md):
+- No unwrap()/expect()/panic!() in the solver (Article 1)
+- Access entities only through Query<> parameters (Article 2)
+- Deterministic iteration order — same initial state -> same result after N iterations (Article 5)
+- Zero allocation inside the solver system once running (Article 6)
+- cargo clippy clean; include a #[test] module validating convergence (Articles 7, 9)
+```
+
+**🚨 HITL GATE:** Acceptance review.
 
 - [ ] `cargo clippy` clean (Article 9)
 - [ ] No `unwrap()` in solver (Article 1)
 - [ ] Deterministic: same initial state → same result after N iterations (Article 5)
 - [ ] No allocation in solver system (Article 6)
 - [ ] `#[test]` validates solver converges for known constraint setup
+
+✅ **Task 3 Approved** → commit and proceed through the remaining 5 tasks the same way
 
 ---
 
