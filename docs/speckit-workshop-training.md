@@ -55,9 +55,11 @@
   - [4.3 Phase B: Target Constitution (Rust/Bevy)](#43-phase-b-target-constitution-rustbevy)
   - [4.4 Phase C: Transformation Plan](#44-phase-c-transformation-plan)
   - [4.5 Phase D: Tasks and Implementation](#45-phase-d-tasks-and-implementation)
+  - [4.5a Milestone: The Engine Runs in Rust](#45a-milestone-the-engine-runs-in-rust)
   - [4.6 Copilot CLI Scenario: Terminal-Driven Transformation](#46-copilot-cli-scenario-terminal-driven-transformation)
   - [4.7 Best Practices for Cross-Language Transformation](#47-best-practices-for-cross-language-transformation)
   - [4.8 Reflection and Key Takeaways](#48-reflection-and-key-takeaways)
+  - [4.9 Going Further: The Full-Game Conversion (Extension Track)](#49-going-further-the-full-game-conversion-extension-track)
 - [Appendix A: Spec-Kit Quick Reference Card](#appendix-a-spec-kit-quick-reference-card)
 - [Appendix B: Copilot CLI Command Reference](#appendix-b-copilot-cli-command-reference)
 - [Appendix C: Custom Instructions File Templates](#appendix-c-custom-instructions-file-templates)
@@ -1464,10 +1466,26 @@ If someone says "add networking," the response is: "Write a `/specify` for it. W
 
 |                  |                                                                                                  |
 | ---------------- | ------------------------------------------------------------------------------------------------ |
-| **Objective**    | Transform engine_demo from C++20/raylib to Rust/Bevy ECS using Spec-Kit as the translation layer |
-| **Duration**     | 90 minutes                                                                                       |
+| **Objective**    | Transform the **`engine_demo` engine foundation** (ECS, physics constraint solver, game loop, RNG, frame budget, allocator) from C++20 to Rust/Bevy ECS using Spec-Kit as the translation layer |
+| **Duration**     | 90 minutes (Core Track); the Extension Track is self-paced follow-through                        |
 | **Approach**     | Reverse-spec the C++ → write Rust constitution → plan transformation → implement in Rust         |
 | **Key Learning** | Specs are language-agnostic; the same spec can drive implementation in any language              |
+
+Part 4 runs as **two tracks**:
+
+| Track | What you build | Where it lives |
+| --- | --- | --- |
+| **Core Track** (this document, §4.2–§4.8) | The engine foundation ported to Rust/Bevy, ending with a running Rust physics scene whose headless digest is bit-exact vs. the C++ reference | §4.2 → §4.3 → §4.4 → §4.5 → §4.5a milestone |
+| **Extension Track** (optional, self-paced) | The full Orbital Arena game — gravity wells, scoring, HUD, VFX, all five scenes — converted through four iterations of the Parity Loop | [Companion document](part4-extension-track.md), introduced in §4.9 |
+
+> **Core Track scope:** it transforms the reusable **engine foundation** in
+> `include/engine_demo/` and `src/engine_demo/` — the six subsystems reverse-specced in
+> §4.2 — not the Orbital Arena game layer (`include/orbital_arena/`) that Part 3 built on
+> top of it. The Core Track's Rust program is therefore a faithful physics demo (a
+> rigid-link "rope" orbiting an anchor), verified against the C++ reference by a
+> bit-exact golden digest (§4.5a). That is by design, not a shortfall: "engine" and
+> "game" are different layers, and porting them as separate, gated efforts is itself a
+> Spec-Kit lesson. Recreating the entire game is the Extension Track's job (§4.9).
 
 **Prerequisites:**
 
@@ -1590,6 +1608,12 @@ Maximum entity count is fixed at construction (default: 4096). No dynamic resizi
 - `specs/transform/rng.spec.md`
 - `specs/transform/frame-budget.spec.md`
 - `specs/transform/allocator.spec.md`
+
+You can do each of these by hand, the way you just did the ECS world spec — or batch all five in one autonomous pass; see Agent Loop - Reverse-Secs.md for the technique. The same batching approach generalizes to the reverse-spec work in the [Extension Track](part4-extension-track.md): swap the manifest and per-item template for whichever spec set you're producing.
+
+These six specs fully cover the **engine foundation** — everything the Core Track needs.
+Continue to Phase B (§4.3). When you later want to reverse-spec the game layer as well,
+the Extension Track (§4.9) picks up exactly here.
 
 ---
 
@@ -1719,6 +1743,14 @@ Component/Resource traits.
 
 ### 4.4 Phase C: Transformation Plan
 
+> **Illustrative vs. actual:** the pattern-mapping table, file layout, and 6-task
+> decomposition in §4.4–§4.5 are a **compact teaching example** covering only the
+> constraint solver. The actual full implementation (US1–US10,
+> `specs/004-rust-bevy-visual-port/`) is a much larger spec-kit cycle — §4.5a reports the
+> core-engine milestone it verified, and the
+> [Extension Track](part4-extension-track.md#e5-results-the-verified-rust-port) reports
+> the full-game results.
+
 **The plan maps C++ patterns to Rust/Bevy patterns:**
 
 ## C++ → Rust/Bevy — Transformation Plan
@@ -1838,6 +1870,76 @@ fn constraint_solver_system(
 - [ ] Deterministic: same initial state → same result after N iterations (Article 5)
 - [ ] No allocation in solver system (Article 6)
 - [ ] `#[test]` validates solver converges for known constraint setup
+
+---
+
+### 4.5a Milestone: The Engine Runs in Rust
+
+The Core Track ends with something you can run and verify. The full Rust port lives in
+`rust-port/orbital-arena-rs/` (built as its own spec-kit feature,
+`specs/004-rust-bevy-visual-port/`); its `--scene constraint` scene is the Rust
+equivalent of the C++ rope scene, and its headless mode is the cross-language acceptance
+instrument.
+
+**Run it:**
+
+```bash
+cd rust-port/orbital-arena-rs
+
+# The rope / constraint-solver scene -- windowed
+cargo run -- --scene constraint
+
+# Windowless golden-digest trace -- the cross-language acceptance instrument
+cargo run -- headless --scene constraint --seed 42 --frames 600 --out trace.csv
+
+# Full verification
+cargo test
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
+```
+
+**The decisive check — the golden digest.** The C++ reference's rope scene produces
+`trace_digest = 9dc3bd72a4f7f31a` at seed 42 over 600 frames. The Rust port's headless
+run produces the **bit-exact same digest** — byte-for-byte proof that the Phase A
+reverse-specs preserved behavior across the language boundary. This is §4.7's "validate
+equivalence with deterministic tests" principle, executed for real.
+
+On a VM with no hardware GPU, `wgpu` falls back automatically to a software adapter —
+slower, but no extra flags are needed for windowed mode; `headless` needs no GPU at all.
+
+**Three field notes from reaching bit-exactness.** These are engine-port lessons — any
+cross-language port with a golden-digest gate will meet some version of them:
+
+> **Field note — two rng engines, not one.** Achieving the rope scene's bit-exact digest
+> required a SECOND rng type alongside the port's `rand::StdRng`-based `DeterministicRng`: a
+> hand-written `EngineRng` (MT19937, `rng_mt.rs`) replicating `std::mt19937`'s exact output
+> sequence plus the C++ reference's 64→32-bit seed XOR-fold. `StdRng` remains correct and
+> idiomatic for anything that doesn't need cross-language bit-parity; only paths that feed
+> a golden digest need the parity engine.
+
+<!-- markdownlint-disable-next-line MD028 -->
+
+> **Field note — `Time<Fixed>` is not bit-identical to a literal constant.** Bevy's
+> `Time<Fixed>` quantizes its period to whole nanoseconds internally, so
+> `Time::<Fixed>::from_hz(60.0)` yields a `delta_secs_f64()` of `0.016666667` — not the
+> IEEE-754 bit pattern of the literal `1.0 / 60.0`. Any physics system reading `dt` from
+> `Time<Fixed>` silently diverges from a C++ reference using a literal step constant. Fix:
+> define one crate-wide `const FIXED_STEP_SECONDS: f64 = 1.0 / 60.0` and use it everywhere
+> physics integrates time, reserving `Time<Fixed>` for scheduling the `FixedUpdate` cadence
+> itself.
+
+<!-- markdownlint-disable-next-line MD028 -->
+
+> **Field note — particle order is state, not an implementation detail.**
+> `engine_demo::vfx::particle_pool`'s "dense array + swap-remove" recycling (forward scan; on
+> retirement, move the last live slot into the freed index, re-examine without advancing)
+> had to be replicated as an *exact algorithm*, not merely an equivalent-behavior recycling
+> scheme — because the digest hashes particles in live storage order, any
+> different-but-valid recycling strategy produces a different order and a different hash
+> even with identical physics.
+
+With this milestone verified, the Core Track is complete. §4.6–§4.8 cover tooling and
+best practices; §4.9 shows the road from engine port to full game.
 
 ---
 
@@ -2048,6 +2150,50 @@ Write a "golden file" test that captures the C++ output at a known seed and fram
 | "When is Copilot CLI better than VS Code?"                  | For batch operations (generating 6 reverse-specs), headless/CI environments, and when you want plan mode's structured approach.           |
 | "What's the biggest risk in cross-language transformation?" | Transliteration — writing "C++ in Rust syntax." The constitution prevents this by encoding idiomatic target-language rules.               |
 | "How does `/fleet` help?"                                   | Independent tasks (scaffold, RNG, config) can run in parallel, cutting transformation time by ~40%.                                       |
+
+---
+
+### 4.9 Going Further: The Full-Game Conversion (Extension Track)
+
+The Core Track proved the method on the engine foundation. But run the two programs side
+by side and the gap is obvious: the C++ sandbox is a full game — gravity wells, scoring,
+telemetry HUD, spark trails, five scenes — while the Rust port is (so far) one faithful
+physics scene.
+
+Closing that gap is the **Extension Track**: four iterations of one repeating cycle, the
+**Parity Loop**:
+
+```text
+        ┌───────────────────────────────────────────────────────────┐
+        │                                                           │
+        ▼                                                           │
+┌────────────────┐   ┌──────────────────┐   ┌───────────┐   ┌──────┴──────┐
+│ Compare output │──▶│ Reverse-spec the │──▶│ Implement │──▶│ Gate: tests │
+│ vs. reference  │   │ gap you found    │   │ from spec │   │ + evidence  │
+└────────────────┘   └──────────────────┘   └───────────┘   └─────────────┘
+```
+
+Each iteration compares the Rust port's actual output against the C++ reference,
+reverse-specs whatever the comparison reveals as missing, implements from that spec, and
+gates on falsifiable acceptance criteria — then loops. The first three iterations close
+the gaps a screenshot can surface; the final iteration inverts the method into a full
+code-surface audit, producing a provably complete spec set with golden digests for all
+five scenes.
+
+Continue in the companion document:
+**[Part 4 Extension Track — From Engine Port to Full Game](part4-extension-track.md)**
+
+| Extension | Closes                                                          |
+| --------- | --------------------------------------------------------------- |
+| E.1       | The Orbital Arena game layer (gravity wells, capture, scoring)  |
+| E.2       | HUD parity and interactive control                              |
+| E.3       | The default sandbox stage — VFX and free particles              |
+| E.4       | Full-fidelity closure — every spec needed to recreate the game  |
+| E.5       | Results: the verified Rust port (what was built, what remains)  |
+
+The Extension Track is self-paced. Each extension is a complete Spec-Kit cycle with its
+own HITL gates, and each teaches the same audit lesson from a different angle: a passing
+glance at a screenshot is not the same as an audited comparison.
 
 ---
 
